@@ -150,7 +150,7 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
         </header>
         <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
           {currentStatus === "failed" && (
-            <p className="text-red-500 text-[12px]">A indexação falhou.</p>
+            <p className="text-red-400/80 text-xs">A indexação falhou.</p>
           )}
           <p className="text-white/30 text-[13px]">A reunião precisa ser indexada antes de usar o chat.</p>
           <button
@@ -160,7 +160,7 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
           >
             {indexing ? "Indexando..." : "Indexar reunião"}
           </button>
-          {error && <p className="text-red-500 text-[12px]">{error}</p>}
+          {error && <p className="text-red-400/80 text-xs">{error}</p>}
         </div>
       </>
     );
@@ -258,7 +258,7 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
             </svg>
           </button>
         </div>
-        {error && <p className="text-red-500 text-[11px] mt-2">{error}</p>}
+        {error && <p className="text-red-400/80 text-xs mt-2">{error}</p>}
       </div>
     </>
   );

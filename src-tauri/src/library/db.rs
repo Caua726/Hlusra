@@ -45,11 +45,8 @@ impl LibraryDb {
 
     pub fn open_in_memory() -> rusqlite::Result<Self> {
         let conn = Connection::open_in_memory()?;
-        conn.execute_batch(
-            "PRAGMA journal_mode = WAL;
-             PRAGMA synchronous = NORMAL;
-             PRAGMA foreign_keys = ON;"
-        )?;
+        // WAL and synchronous are not meaningful for in-memory databases.
+        conn.execute_batch("PRAGMA foreign_keys = ON;")?;
         let db = LibraryDb { conn };
         db.run_migrations()?;
         Ok(db)

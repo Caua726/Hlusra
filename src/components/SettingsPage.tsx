@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   getSettings,
   updateSettings,
@@ -33,6 +33,7 @@ export default function SettingsPage({ onBack }: Props) {
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>("geral");
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
 
   // Encoder probing
   const [encoders, setEncoders] = useState<Record<string, string[]>>({});
@@ -70,8 +71,18 @@ export default function SettingsPage({ onBack }: Props) {
 
   function update(fn: (s: AppSettings) => AppSettings) {
     setSaved(false);
+    setIsDirty(true);
     setSettings((prev) => prev ? fn(prev) : prev);
   }
+
+  const handleBack = useCallback(() => {
+    if (isDirty) {
+      if (!window.confirm("Existem alterações não salvas. Deseja sair mesmo assim?")) {
+        return;
+      }
+    }
+    onBack();
+  }, [isDirty, onBack]);
 
   function handleTabSwitch(tab: SettingsTab) {
     setActiveTab(tab);
@@ -87,6 +98,7 @@ export default function SettingsPage({ onBack }: Props) {
     try {
       await updateSettings(settings);
       setSaved(true);
+      setIsDirty(false);
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       savedTimerRef.current = setTimeout(() => setSaved(false), 3000);
     } catch (e) {
@@ -126,7 +138,7 @@ export default function SettingsPage({ onBack }: Props) {
       <>
         <header className="glass shrink-0 border-b border-white/5">
           <div className="px-5 h-12 flex items-center gap-3">
-            <button onClick={onBack} aria-label="Voltar" className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+            <button onClick={handleBack} aria-label="Voltar" className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
               </svg>
@@ -146,7 +158,7 @@ export default function SettingsPage({ onBack }: Props) {
       <>
         <header className="glass shrink-0 border-b border-white/5">
           <div className="px-5 h-12 flex items-center gap-3">
-            <button onClick={onBack} aria-label="Voltar" className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+            <button onClick={handleBack} aria-label="Voltar" className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
               </svg>
@@ -155,7 +167,7 @@ export default function SettingsPage({ onBack }: Props) {
           </div>
         </header>
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-red-500 text-sm">{error || "Falha ao carregar configurações."}</p>
+          <p className="text-red-400/80 text-xs">{error || "Falha ao carregar configurações."}</p>
         </div>
       </>
     );
@@ -168,7 +180,7 @@ export default function SettingsPage({ onBack }: Props) {
       {/* Header */}
       <header className="glass shrink-0 border-b border-white/5">
         <div className="px-5 h-12 flex items-center gap-3">
-          <button onClick={onBack} aria-label="Voltar" className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+          <button onClick={handleBack} aria-label="Voltar" className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
             </svg>
@@ -260,7 +272,7 @@ export default function SettingsPage({ onBack }: Props) {
                   {saving ? "Salvando..." : "Salvar"}
                 </button>
                 {saved && <span className="text-emerald-400 text-[11px]">Salvo!</span>}
-                {error && <span className="text-red-500 text-[11px]">{error}</span>}
+                {error && <span className="text-red-400/80 text-xs">{error}</span>}
               </div>
             </div>
           )}
@@ -389,7 +401,7 @@ export default function SettingsPage({ onBack }: Props) {
                   {saving ? "Salvando..." : "Salvar"}
                 </button>
                 {saved && <span className="text-emerald-400 text-[11px]">Salvo!</span>}
-                {error && <span className="text-red-500 text-[11px]">{error}</span>}
+                {error && <span className="text-red-400/80 text-xs">{error}</span>}
               </div>
             </div>
           )}
@@ -440,7 +452,7 @@ export default function SettingsPage({ onBack }: Props) {
                   {saving ? "Salvando..." : "Salvar"}
                 </button>
                 {saved && <span className="text-emerald-400 text-[11px]">Salvo!</span>}
-                {error && <span className="text-red-500 text-[11px]">{error}</span>}
+                {error && <span className="text-red-400/80 text-xs">{error}</span>}
               </div>
             </div>
           )}
@@ -604,7 +616,7 @@ export default function SettingsPage({ onBack }: Props) {
                   {saving ? "Salvando..." : "Salvar"}
                 </button>
                 {saved && <span className="text-emerald-400 text-[11px]">Salvo!</span>}
-                {error && <span className="text-red-500 text-[11px]">{error}</span>}
+                {error && <span className="text-red-400/80 text-xs">{error}</span>}
               </div>
             </div>
           )}
@@ -627,6 +639,7 @@ export default function SettingsPage({ onBack }: Props) {
                   }
                   placeholder="https://openrouter.ai/api/v1"
                 />
+                <p className="text-[10px] text-white/15 mt-1">URL base — /embeddings será adicionado automaticamente</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -676,6 +689,7 @@ export default function SettingsPage({ onBack }: Props) {
                     }
                     placeholder="https://openrouter.ai/api/v1"
                   />
+                  <p className="text-[10px] text-white/15 mt-1">URL base — /chat/completions será adicionado automaticamente</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -750,7 +764,7 @@ export default function SettingsPage({ onBack }: Props) {
                   {saving ? "Salvando..." : "Salvar"}
                 </button>
                 {saved && <span className="text-emerald-400 text-[11px]">Salvo!</span>}
-                {error && <span className="text-red-500 text-[11px]">{error}</span>}
+                {error && <span className="text-red-400/80 text-xs">{error}</span>}
               </div>
             </div>
           )}

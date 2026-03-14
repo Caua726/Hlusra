@@ -84,7 +84,7 @@ export default function TranscriptView({
           <h2 className="text-[11px] font-semibold text-white/50 uppercase tracking-wider">Transcrição</h2>
         </div>
         <div className="flex flex-col items-center gap-3 p-8">
-          <p className="text-red-500 text-[12px]">A transcrição falhou.</p>
+          <p className="text-red-400/80 text-xs">A transcrição falhou.</p>
           <button
             className="glass-heavy px-4 py-2 text-[11px] rounded-xl text-white/40 hover:text-white/70 transition-all cursor-pointer border-0 bg-transparent"
             onClick={handleTranscribe}
@@ -92,7 +92,7 @@ export default function TranscriptView({
           >
             Tentar novamente
           </button>
-          {error && <p className="text-red-500 text-[11px]">{error}</p>}
+          {error && <p className="text-red-400/80 text-xs">{error}</p>}
         </div>
       </div>
     );
@@ -107,13 +107,13 @@ export default function TranscriptView({
         <div className="flex flex-col items-center gap-3 p-8">
           <p className="text-white/30 text-[12px]">Nenhuma transcrição disponível.</p>
           <button
-            className="px-5 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-[11px] font-medium transition-all active:scale-[0.98] glow-sm cursor-pointer border-0"
+            className="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-[12px] font-medium transition-all active:scale-[0.98] glow-sm cursor-pointer border-0 disabled:opacity-40"
             onClick={handleTranscribe}
             disabled={transcribing}
           >
             Transcrever agora
           </button>
-          {error && <p className="text-red-500 text-[11px]">{error}</p>}
+          {error && <p className="text-red-400/80 text-xs">{error}</p>}
         </div>
       </div>
     );

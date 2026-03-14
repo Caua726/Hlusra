@@ -56,6 +56,7 @@ pub fn export_video(
     let target_codec = match format {
         VideoFormat::Mp4H264 | VideoFormat::MkvH264 => "h264",
         VideoFormat::Mp4H265 | VideoFormat::MkvH265 => "hevc",
+        VideoFormat::MkvAv1 => "av1",
     };
     // Stream-copy only if source matches target codec exactly
     let can_copy = source_codec == target_codec

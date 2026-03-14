@@ -5,10 +5,48 @@ use crate::transcription::types::TranscriptResult;
 
 /// Approximate token count for a string.
 ///
-/// Uses a simple heuristic: split on whitespace.  This is intentionally cheap
-/// — the goal is "roughly 500 tokens", not exact BPE tokenisation.
+/// Uses a simple heuristic: for CJK-heavy text (where whitespace splitting
+/// drastically undercounts), we use `chars().count() / 2`.  For Latin/other
+/// scripts we split on whitespace.  This is intentionally cheap — the goal is
+/// "roughly 500 tokens", not exact BPE tokenisation.
 fn estimate_tokens(text: &str) -> usize {
-    text.split_whitespace().count()
+    if has_significant_cjk(text) {
+        // CJK characters map to ~1-2 tokens each in most tokenisers.
+        // chars/2 is a reasonable middle-ground.
+        (text.chars().count() + 1) / 2
+    } else {
+        text.split_whitespace().count()
+    }
+}
+
+/// Returns true if more than 30% of the non-whitespace characters in `text`
+/// fall in CJK Unified Ideographs ranges (U+4E00..U+9FFF, U+3400..U+4DBF,
+/// U+F900..U+FAFF, plus Hiragana U+3040..U+309F and Katakana U+30A0..U+30FF).
+fn has_significant_cjk(text: &str) -> bool {
+    let mut total: usize = 0;
+    let mut cjk: usize = 0;
+    for ch in text.chars() {
+        if ch.is_whitespace() {
+            continue;
+        }
+        total += 1;
+        if is_cjk_char(ch) {
+            cjk += 1;
+        }
+    }
+    total > 0 && (cjk * 100 / total) > 30
+}
+
+/// Check if a character belongs to a CJK / Kana Unicode block.
+fn is_cjk_char(ch: char) -> bool {
+    matches!(ch,
+        '\u{4E00}'..='\u{9FFF}'   // CJK Unified Ideographs
+        | '\u{3400}'..='\u{4DBF}' // CJK Unified Ideographs Extension A
+        | '\u{F900}'..='\u{FAFF}' // CJK Compatibility Ideographs
+        | '\u{3040}'..='\u{309F}' // Hiragana
+        | '\u{30A0}'..='\u{30FF}' // Katakana
+        | '\u{AC00}'..='\u{D7AF}' // Hangul Syllables
+    )
 }
 
 /// Split a `TranscriptResult` into chunks of approximately `chunk_size` tokens.
@@ -171,6 +209,28 @@ mod tests {
         assert_eq!(chunks.len(), 1);
         assert!((chunks[0].start_time - 10.0).abs() < f64::EPSILON);
         assert!((chunks[0].end_time - 20.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_estimate_tokens_latin() {
+        assert_eq!(estimate_tokens("hello world foo bar"), 4);
+        assert_eq!(estimate_tokens("one"), 1);
+        assert_eq!(estimate_tokens(""), 0);
+    }
+
+    #[test]
+    fn test_estimate_tokens_cjk() {
+        // 6 CJK chars -> chars/2 = 3 tokens (rounded up)
+        let cjk = "\u{4F60}\u{597D}\u{4E16}\u{754C}\u{65E9}\u{5B89}";
+        assert_eq!(estimate_tokens(cjk), 3);
+    }
+
+    #[test]
+    fn test_has_significant_cjk() {
+        assert!(has_significant_cjk("\u{4F60}\u{597D}\u{4E16}\u{754C}"));
+        assert!(!has_significant_cjk("hello world"));
+        // Mixed: 2 CJK + 10 latin chars (non-ws) -> 2/12 = 16% < 30%
+        assert!(!has_significant_cjk("hello world \u{4F60}\u{597D}"));
     }
 
     #[test]

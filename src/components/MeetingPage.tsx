@@ -231,7 +231,7 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
           </div>
         </header>
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-red-500 text-sm">{error || "Reunião não encontrada."}</p>
+          <p className="text-red-400/80 text-xs">{error || "Reunião não encontrada."}</p>
         </div>
       </>
     );
@@ -425,7 +425,7 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
           )}
         </div>
 
-        {actionError && <p className="text-red-500 text-sm">{actionError}</p>}
+        {actionError && <p className="text-red-400/80 text-xs">{actionError}</p>}
       </div>
 
       {/* Delete confirmation overlay */}

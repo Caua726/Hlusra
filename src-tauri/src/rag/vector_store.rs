@@ -13,6 +13,8 @@ pub enum VectorStoreError {
     ModelChanged { stored: String, configured: String },
     #[error("No embedding dimension stored — database needs initialisation")]
     NoDimension,
+    #[error("sqlite-vec extension not available: {0}")]
+    VecNotAvailable(String),
 }
 
 impl serde::Serialize for VectorStoreError {
@@ -184,15 +186,29 @@ impl VectorStore {
     // Initialisation / reindex support
     // -----------------------------------------------------------------------
 
+    /// Returns whether the sqlite-vec extension is loaded and vector search
+    /// is available.
+    pub fn vec_available(&self) -> bool {
+        self.vec_available
+    }
+
     /// Initialise (or reinitialise) the vector table for a given model and
     /// embedding dimension.  Drops the old `chunks_vec` table if it exists,
     /// clears all chunks, and creates a new virtual table with the right
     /// dimension.
+    ///
+    /// Requires sqlite-vec to be loaded.
     pub fn init_vector_table(
         &self,
         model: &str,
         dimension: usize,
     ) -> Result<(), VectorStoreError> {
+        if !self.vec_available {
+            return Err(VectorStoreError::VecNotAvailable(
+                "cannot create vector table without sqlite-vec (vec0) extension".to_string(),
+            ));
+        }
+
         let tx = self.conn.unchecked_transaction()?;
 
         // Drop old virtual table if present.
@@ -252,6 +268,9 @@ impl VectorStore {
 
     /// Insert a chunk and its embedding into both the `chunks` table and the
     /// `chunks_vec` virtual table.
+    ///
+    /// If sqlite-vec is not available, the chunk is stored in `chunks` but
+    /// skipped in `chunks_vec`.
     pub fn insert_chunk(
         &self,
         chunk: &Chunk,
@@ -275,11 +294,13 @@ impl VectorStore {
             ],
         )?;
 
-        tx.execute(
-            "INSERT OR REPLACE INTO chunks_vec (chunk_id, embedding)
-             VALUES (?1, ?2)",
-            params![chunk.id, embedding_blob],
-        )?;
+        if self.vec_available {
+            tx.execute(
+                "INSERT OR REPLACE INTO chunks_vec (chunk_id, embedding)
+                 VALUES (?1, ?2)",
+                params![chunk.id, embedding_blob],
+            )?;
+        }
 
         tx.commit()?;
         Ok(())
@@ -316,11 +337,13 @@ impl VectorStore {
                 ],
             )?;
 
-            tx.execute(
-                "INSERT OR REPLACE INTO chunks_vec (chunk_id, embedding)
-                 VALUES (?1, ?2)",
-                params![chunk.id, blob],
-            )?;
+            if self.vec_available {
+                tx.execute(
+                    "INSERT OR REPLACE INTO chunks_vec (chunk_id, embedding)
+                     VALUES (?1, ?2)",
+                    params![chunk.id, blob],
+                )?;
+            }
         }
         tx.commit()?;
         Ok(())
@@ -328,22 +351,25 @@ impl VectorStore {
 
     /// Delete all chunks for a given meeting.
     pub fn delete_meeting_chunks(&self, meeting_id: &str) -> Result<(), VectorStoreError> {
-        // Get chunk IDs first so we can remove from the virtual table.
-        let chunk_ids: Vec<String> = {
-            let mut stmt = self
-                .conn
-                .prepare("SELECT id FROM chunks WHERE meeting_id = ?1")?;
-            let rows = stmt.query_map(params![meeting_id], |row| row.get(0))?;
-            rows.collect::<Result<Vec<String>, _>>()?
-        };
-
         let tx = self.conn.unchecked_transaction()?;
-        for cid in &chunk_ids {
-            tx.execute(
-                "DELETE FROM chunks_vec WHERE chunk_id = ?1",
-                params![cid],
-            )?;
+
+        if self.vec_available {
+            // Get chunk IDs first so we can remove from the virtual table.
+            let chunk_ids: Vec<String> = {
+                let mut stmt = tx
+                    .prepare("SELECT id FROM chunks WHERE meeting_id = ?1")?;
+                let rows = stmt.query_map(params![meeting_id], |row| row.get(0))?;
+                rows.collect::<Result<Vec<String>, _>>()?
+            };
+
+            for cid in &chunk_ids {
+                tx.execute(
+                    "DELETE FROM chunks_vec WHERE chunk_id = ?1",
+                    params![cid],
+                )?;
+            }
         }
+
         tx.execute(
             "DELETE FROM chunks WHERE meeting_id = ?1",
             params![meeting_id],
@@ -354,12 +380,18 @@ impl VectorStore {
 
     /// Search for the top-k most similar chunks to a query embedding,
     /// scoped to a specific meeting.
+    ///
+    /// Returns an empty result set if sqlite-vec is not available.
     pub fn search(
         &self,
         meeting_id: &str,
         query_embedding: &[f32],
         top_k: usize,
     ) -> Result<Vec<Chunk>, VectorStoreError> {
+        if !self.vec_available {
+            return Ok(Vec::new());
+        }
+
         let query_blob = embedding_to_blob(query_embedding);
 
         // sqlite-vec returns rows ordered by distance.  We use the total
