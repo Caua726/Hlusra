@@ -8,7 +8,7 @@ import {
   reindexMeeting,
 } from "../lib/api";
 import type { MeetingDetail } from "../lib/api";
-import { formatDuration } from "../lib/format";
+import { formatDuration, formatError } from "../lib/format";
 import TranscriptView from "./TranscriptView";
 import ChatPanel from "./ChatPanel";
 import ExportDialog from "./ExportDialog";
@@ -50,7 +50,7 @@ export default function MeetingPage({ meetingId, onBack }: Props) {
       setMeeting(data);
       setTitleDraft(data.title);
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
     } finally {
       setLoading(false);
     }

@@ -6,6 +6,7 @@ import {
   exportTranscript,
 } from "../lib/api";
 import type { AudioFormat, VideoFormat, TranscriptFormat, SaveMode } from "../lib/api";
+import { formatError } from "../lib/format";
 
 interface Props {
   meetingId: string;
@@ -73,7 +74,7 @@ export default function ExportDialog({ meetingId, hasVideo, hasTranscript, onClo
       }
       setResult(path);
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
     } finally {
       setExporting(false);
     }

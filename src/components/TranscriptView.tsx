@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { transcribeMeeting, getTranscriptionStatus } from "../lib/api";
 import type { TranscriptResult } from "../lib/api";
+import { formatError } from "../lib/format";
 
 interface Props {
   meetingId: string;
@@ -58,7 +59,7 @@ export default function TranscriptView({
         }
       }, 2000);
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
       setTranscribing(false);
     }
   }
