@@ -149,6 +149,19 @@ export default function SettingsPage({ onBack }: Props) {
             }
           />
         </div>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={settings.general.start_minimized}
+            onChange={(e) =>
+              update((s) => ({
+                ...s,
+                general: { ...s.general, start_minimized: e.target.checked },
+              }))
+            }
+          />
+          <span>Iniciar minimizado</span>
+        </label>
       </section>
 
       {/* Audio */}
@@ -229,6 +242,21 @@ export default function SettingsPage({ onBack }: Props) {
                 <option value="software">Software</option>
               </>
             )}
+          </select>
+        </div>
+        <div className="settings-field">
+          <label>Contêiner</label>
+          <select
+            value={settings.video.container}
+            onChange={(e) =>
+              update((s) => ({
+                ...s,
+                video: { ...s.video, container: e.target.value },
+              }))
+            }
+          >
+            <option value="mkv">MKV</option>
+            <option value="mp4">MP4</option>
           </select>
         </div>
         <div className="settings-field">

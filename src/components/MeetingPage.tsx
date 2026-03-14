@@ -37,9 +37,10 @@ export default function MeetingPage({ meetingId, onBack }: Props) {
   const [titleDraft, setTitleDraft] = useState("");
   const [showExport, setShowExport] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const mediaElRef = useRef<HTMLMediaElement | null>(null);
-  const setMediaRef = useCallback((el: HTMLVideoElement | HTMLAudioElement | null) => {
+  const setMediaRef = useCallback((el: HTMLMediaElement | null) => {
     mediaElRef.current = el;
   }, []);
 
@@ -96,6 +97,7 @@ export default function MeetingPage({ meetingId, onBack }: Props) {
 
   async function handleDelete(mode: "everything" | "media_only") {
     setActionError(null);
+    setActionBusy(true);
     try {
       await deleteMeeting(meetingId, mode);
       if (mode === "everything") {
@@ -106,26 +108,34 @@ export default function MeetingPage({ meetingId, onBack }: Props) {
       }
     } catch (e) {
       setActionError(String(e));
+    } finally {
+      setActionBusy(false);
     }
   }
 
   async function handleRetranscribe() {
     setActionError(null);
+    setActionBusy(true);
     try {
       await retranscribeMeeting(meetingId);
       await loadMeeting();
     } catch (e) {
       setActionError(String(e));
+    } finally {
+      setActionBusy(false);
     }
   }
 
   async function handleReindex() {
     setActionError(null);
+    setActionBusy(true);
     try {
       await reindexMeeting(meetingId);
       await loadMeeting();
     } catch (e) {
       setActionError(String(e));
+    } finally {
+      setActionBusy(false);
     }
   }
 
@@ -179,23 +189,29 @@ export default function MeetingPage({ meetingId, onBack }: Props) {
       </div>
 
       {/* Media Player */}
-      <div className="media-player">
-        {meeting.has_video ? (
-          <video
-            ref={setMediaRef}
-            src={mediaSrc}
-            controls
-            className="player-video"
-          />
-        ) : (
-          <audio
-            ref={setMediaRef}
-            src={mediaSrc}
-            controls
-            className="player-audio"
-          />
-        )}
-      </div>
+      {meeting.media_status === "present" ? (
+        <div className="media-player">
+          {meeting.has_video ? (
+            <video
+              ref={setMediaRef}
+              src={mediaSrc}
+              controls
+              className="player-video"
+            />
+          ) : (
+            <audio
+              ref={setMediaRef}
+              src={mediaSrc}
+              controls
+              className="player-audio"
+            />
+          )}
+        </div>
+      ) : (
+        <div className="media-player">
+          <p className="empty">Mídia excluída.</p>
+        </div>
+      )}
 
       {/* Transcript */}
       <TranscriptView
@@ -215,22 +231,23 @@ export default function MeetingPage({ meetingId, onBack }: Props) {
 
       {/* Actions bar */}
       <div className="meeting-actions">
-        <button className="btn-primary" onClick={() => setShowExport(true)}>
+        <button className="btn-primary" onClick={() => setShowExport(true)} disabled={actionBusy}>
           Exportar
         </button>
         {meeting.transcription_status === "done" && (
-          <button className="btn-secondary" onClick={handleRetranscribe}>
-            Retranscrever
+          <button className="btn-secondary" onClick={handleRetranscribe} disabled={actionBusy}>
+            {actionBusy ? "Processando..." : "Retranscrever"}
           </button>
         )}
         {meeting.chat_status === "ready" && (
-          <button className="btn-secondary" onClick={handleReindex}>
-            Reindexar
+          <button className="btn-secondary" onClick={handleReindex} disabled={actionBusy}>
+            {actionBusy ? "Processando..." : "Reindexar"}
           </button>
         )}
         <button
           className="btn-danger"
           onClick={() => setShowDeleteConfirm(true)}
+          disabled={actionBusy}
         >
           Excluir
         </button>
@@ -245,14 +262,14 @@ export default function MeetingPage({ meetingId, onBack }: Props) {
             <h3>Confirmar exclusão</h3>
             <p>O que deseja excluir?</p>
             <div className="modal-actions">
-              <button className="btn-danger" onClick={() => handleDelete("everything")}>
-                Apagar tudo
-              </button>
-              <button className="btn-secondary" onClick={() => handleDelete("media_only")}>
-                Apagar só mídia
-              </button>
-              <button className="btn-secondary" onClick={() => setShowDeleteConfirm(false)}>
+              <button className="btn-primary" onClick={() => setShowDeleteConfirm(false)} disabled={actionBusy}>
                 Cancelar
+              </button>
+              <button className="btn-secondary" onClick={() => handleDelete("media_only")} disabled={actionBusy}>
+                {actionBusy ? "Excluindo..." : "Apagar só mídia"}
+              </button>
+              <button className="btn-danger" onClick={() => handleDelete("everything")} disabled={actionBusy}>
+                {actionBusy ? "Excluindo..." : "Apagar tudo"}
               </button>
             </div>
           </div>

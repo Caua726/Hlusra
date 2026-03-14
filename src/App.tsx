@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Gallery from "./components/Gallery";
 import RecordButton from "./components/RecordButton";
 import MeetingPage from "./components/MeetingPage";
@@ -13,6 +13,7 @@ type View =
 
 function App() {
   const [view, setView] = useState<View>({ kind: "home" });
+  const galleryRefreshRef = useRef(0);
 
   return (
     <div className="app">
@@ -42,13 +43,20 @@ function App() {
       {view.kind === "home" && (
         <div className="home">
           <h1>Hlusra</h1>
-          <RecordButton onRecordingDone={() => setView({ kind: "gallery" })} />
-          <Gallery onSelectMeeting={(id) => setView({ kind: "meeting", id })} />
+          <RecordButton
+            onRecordingDone={() => {
+              galleryRefreshRef.current += 1;
+              setView({ kind: "gallery" });
+            }}
+          />
         </div>
       )}
 
       {view.kind === "gallery" && (
-        <Gallery onSelectMeeting={(id) => setView({ kind: "meeting", id })} />
+        <Gallery
+          key={galleryRefreshRef.current}
+          onSelectMeeting={(id) => setView({ kind: "meeting", id })}
+        />
       )}
 
       {view.kind === "meeting" && (

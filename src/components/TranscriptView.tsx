@@ -75,14 +75,14 @@ export default function TranscriptView({
     );
   }
 
-  if (transcriptionStatus === "pending" || (!transcript && transcriptionStatus !== "done")) {
+  if (transcriptionStatus === "failed") {
     return (
       <div className="transcript-section">
         <h3>Transcrição</h3>
         <div className="transcript-empty">
-          <p>Nenhuma transcrição disponível.</p>
-          <button className="btn-primary" onClick={handleTranscribe}>
-            Transcrever agora
+          <p className="error-text">A transcrição falhou.</p>
+          <button className="btn-primary" onClick={handleTranscribe} disabled={transcribing}>
+            Tentar novamente
           </button>
           {error && <p className="error-text">{error}</p>}
         </div>
@@ -90,14 +90,14 @@ export default function TranscriptView({
     );
   }
 
-  if (transcriptionStatus === "failed") {
+  if (transcriptionStatus === "pending" || (!transcript && transcriptionStatus !== "done")) {
     return (
       <div className="transcript-section">
         <h3>Transcrição</h3>
         <div className="transcript-empty">
-          <p className="error-text">A transcrição falhou.</p>
-          <button className="btn-primary" onClick={handleTranscribe}>
-            Tentar novamente
+          <p>Nenhuma transcrição disponível.</p>
+          <button className="btn-primary" onClick={handleTranscribe} disabled={transcribing}>
+            Transcrever agora
           </button>
           {error && <p className="error-text">{error}</p>}
         </div>
@@ -141,9 +141,15 @@ export default function TranscriptView({
   return (
     <div className="transcript-section">
       <h3>Transcrição</h3>
-      <div className="transcript-plain">
-        <p>{transcript}</p>
-      </div>
+      {transcript ? (
+        <div className="transcript-plain">
+          <p>{transcript}</p>
+        </div>
+      ) : (
+        <div className="transcript-empty">
+          <p>Transcrição concluída, mas sem conteúdo disponível.</p>
+        </div>
+      )}
     </div>
   );
 }

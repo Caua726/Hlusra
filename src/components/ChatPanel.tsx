@@ -22,6 +22,17 @@ export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Pro
   const [currentStatus, setCurrentStatus] = useState(chatStatus);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamBufferRef = useRef("");
+  const mountedRef = useRef(true);
+  const cleanupListenersRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      // Clean up any active listeners on unmount
+      cleanupListenersRef.current?.();
+    };
+  }, []);
 
   useEffect(() => {
     setCurrentStatus(chatStatus);
@@ -48,12 +59,14 @@ export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Pro
     try {
       await indexMeeting(meetingId);
       const status = await getChatStatus(meetingId);
+      if (!mountedRef.current) return;
       setCurrentStatus(status as "not_indexed" | "indexing" | "ready" | "failed");
       onStatusChange();
     } catch (e) {
+      if (!mountedRef.current) return;
       setError(String(e));
     } finally {
-      setIndexing(false);
+      if (mountedRef.current) setIndexing(false);
     }
   }
 
@@ -88,20 +101,26 @@ export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Pro
     });
 
     const unlistenError = await listen<string>("chat-stream-error", (event) => {
-      setError(event.payload);
+      if (mountedRef.current) setError(event.payload);
       resolveDone();
     });
+
+    const cleanup = () => {
+      unlistenChunk();
+      unlistenDone();
+      unlistenError();
+      cleanupListenersRef.current = null;
+    };
+    cleanupListenersRef.current = cleanup;
 
     try {
       await chatMessage(meetingId, msg);
       await streamFinished;
     } catch (e) {
-      setError(String(e));
+      if (mountedRef.current) setError(String(e));
     } finally {
-      unlistenChunk();
-      unlistenDone();
-      unlistenError();
-      setSending(false);
+      cleanup();
+      if (mountedRef.current) setSending(false);
     }
   }
 
@@ -118,11 +137,11 @@ export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Pro
         <h3>Chat</h3>
         <div className="chat-index-prompt">
           {currentStatus === "failed" && (
-            <p className="error-text">A indexacao falhou.</p>
+            <p className="error-text">A indexação falhou.</p>
           )}
-          <p>A reuniao precisa ser indexada antes de usar o chat.</p>
+          <p>A reunião precisa ser indexada antes de usar o chat.</p>
           <button className="btn-primary" onClick={handleIndex} disabled={indexing}>
-            {indexing ? "Indexando..." : "Indexar reuniao"}
+            {indexing ? "Indexando..." : "Indexar reunião"}
           </button>
           {error && <p className="error-text">{error}</p>}
         </div>
@@ -136,7 +155,7 @@ export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Pro
         <h3>Chat</h3>
         <div className="chat-index-prompt">
           <div className="spinner" />
-          <p>Indexando reuniao...</p>
+          <p>Indexando reunião...</p>
         </div>
       </div>
     );
@@ -147,7 +166,7 @@ export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Pro
       <h3>Chat</h3>
       <div className="chat-messages">
         {messages.length === 0 && (
-          <p className="chat-empty">Faca uma pergunta sobre esta reuniao.</p>
+          <p className="chat-empty">Faça uma pergunta sobre esta reunião.</p>
         )}
         {messages.map((msg, i) => (
           <div key={i} className={`chat-bubble chat-${msg.role}`}>

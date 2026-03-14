@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { MeetingSummary, listMeetings } from "../lib/api";
 import MeetingCard from "./MeetingCard";
 
@@ -11,11 +11,9 @@ export default function Gallery({ onSelectMeeting }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadMeetings();
-  }, []);
-
-  async function loadMeetings() {
+  const loadMeetings = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const list = await listMeetings();
       setMeetings(list);
@@ -25,7 +23,11 @@ export default function Gallery({ onSelectMeeting }: Props) {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    loadMeetings();
+  }, [loadMeetings]);
 
   if (loading) return <div className="loading">Carregando...</div>;
 
@@ -33,7 +35,12 @@ export default function Gallery({ onSelectMeeting }: Props) {
     <div className="gallery">
       <h2>Reuniões</h2>
       {error ? (
-        <p className="error-text">{error}</p>
+        <div className="gallery-error">
+          <p className="error-text">{error}</p>
+          <button className="btn-secondary" onClick={loadMeetings}>
+            Tentar novamente
+          </button>
+        </div>
       ) : meetings.length === 0 ? (
         <p className="empty">Nenhuma reunião gravada ainda.</p>
       ) : (
