@@ -96,7 +96,7 @@ pub enum ChatStatus {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum DeleteMode {
     Everything,
     MediaOnly,
@@ -106,6 +106,7 @@ pub enum DeleteMode {
 #[serde(rename_all = "snake_case")]
 pub enum ArtifactKind {
     Recording,
+    AudioPreview,
     Thumbnail,
     TranscriptJson,
     TranscriptTxt,
@@ -115,6 +116,7 @@ impl ArtifactKind {
     pub fn filename(&self) -> &'static str {
         match self {
             Self::Recording => "recording.mkv",
+            Self::AudioPreview => "preview.ogg",
             Self::Thumbnail => "thumbnail.jpg",
             Self::TranscriptJson => "transcript.json",
             Self::TranscriptTxt => "transcript.txt",
@@ -139,7 +141,7 @@ impl std::str::FromStr for MediaStatus {
             "present" => Ok(Self::Present),
             "deleted" => Ok(Self::Deleted),
             other => {
-                eprintln!("[types] WARNING: unknown MediaStatus '{}', defaulting to Present", other);
+                tracing::warn!("unknown MediaStatus '{}', defaulting to Present", other);
                 Ok(Self::Present)
             }
         }
@@ -167,7 +169,7 @@ impl std::str::FromStr for TranscriptionStatus {
             "done" => Ok(Self::Done),
             "failed" => Ok(Self::Failed),
             other => {
-                eprintln!("[types] WARNING: unknown TranscriptionStatus '{}', defaulting to Pending", other);
+                tracing::warn!("unknown TranscriptionStatus '{}', defaulting to Pending", other);
                 Ok(Self::Pending)
             }
         }
@@ -195,7 +197,7 @@ impl std::str::FromStr for ChatStatus {
             "ready" => Ok(Self::Ready),
             "failed" => Ok(Self::Failed),
             other => {
-                eprintln!("[types] WARNING: unknown ChatStatus '{}', defaulting to NotIndexed", other);
+                tracing::warn!("unknown ChatStatus '{}', defaulting to NotIndexed", other);
                 Ok(Self::NotIndexed)
             }
         }
@@ -215,6 +217,7 @@ mod tests {
     #[test]
     fn test_artifact_kind_filenames() {
         assert_eq!(ArtifactKind::Recording.filename(), "recording.mkv");
+        assert_eq!(ArtifactKind::AudioPreview.filename(), "preview.ogg");
         assert_eq!(ArtifactKind::Thumbnail.filename(), "thumbnail.jpg");
         assert_eq!(ArtifactKind::TranscriptJson.filename(), "transcript.json");
         assert_eq!(ArtifactKind::TranscriptTxt.filename(), "transcript.txt");

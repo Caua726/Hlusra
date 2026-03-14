@@ -19,6 +19,8 @@ rusqlite = { version = "0.32", features = ["bundled", "load_extension"] }
 thiserror = "2"
 dirs = "6"
 toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = "0.3"
 
 # Recorder
 gstreamer = "0.25"
@@ -36,6 +38,7 @@ genpdf = "0.2"
 
 # RAG
 futures-util = "0.3"
+bytemuck = "1"
 
 [dev-dependencies]
 tempfile = "3"

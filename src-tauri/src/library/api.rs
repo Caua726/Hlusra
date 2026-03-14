@@ -65,12 +65,12 @@ impl Library {
         // poisoned. All other mutex locks in this file already use map_err.
         self.prepared.lock()
             .map_err(|e| {
-                eprintln!("[library] BUG-FIX: prepared mutex lock poisoned in prepare_meeting: {}", e);
+                tracing::error!("prepared mutex lock poisoned in prepare_meeting: {}", e);
                 LibraryError::Internal("prepared lock poisoned".to_string())
             })?
             .insert(id.clone(), dir_path.clone());
 
-        eprintln!("[library] prepare_meeting: id={}, dir={:?}", id, dir_path);
+        tracing::info!("prepare_meeting: id={}, dir={:?}", id, dir_path);
         Ok(PreparedMeeting { id, dir_path })
     }
 
@@ -83,7 +83,7 @@ impl Library {
         // poisoned. All other mutex locks in this file already use map_err.
         let dir_path = self.prepared.lock()
             .map_err(|e| {
-                eprintln!("[library] BUG-FIX: prepared mutex lock poisoned in finalize_meeting: {}", e);
+                tracing::error!("prepared mutex lock poisoned in finalize_meeting: {}", e);
                 LibraryError::Internal("prepared lock poisoned".to_string())
             })?
             .remove(id)
@@ -109,7 +109,31 @@ impl Library {
             let video_path = meeting.dir_path.join("recording.mkv");
             let thumb_path = meeting.dir_path.join("thumbnail.jpg");
             if let Err(e) = super::thumbnail::generate_thumbnail(&video_path, &thumb_path) {
-                eprintln!("[library] thumbnail generation failed: {}", e);
+                tracing::error!("thumbnail generation failed: {}", e);
+            }
+        }
+
+        // Generate audio preview (OGG/Opus) for browser-compatible playback (non-fatal)
+        {
+            let recording_path = meeting.dir_path.join("recording.mkv");
+            let preview_path = meeting.dir_path.join("preview.ogg");
+            match std::process::Command::new("ffmpeg")
+                .args(["-y", "-loglevel", "error", "-i"])
+                .arg(&recording_path)
+                .args(["-vn", "-codec:a", "libopus", "-b:a", "48k"])
+                .arg(&preview_path)
+                .output()
+            {
+                Ok(output) if output.status.success() => {
+                    tracing::info!("audio preview generated: {:?}", preview_path);
+                }
+                Ok(output) => {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    tracing::error!("audio preview generation failed: {}", stderr);
+                }
+                Err(e) => {
+                    tracing::error!("failed to run ffmpeg for audio preview: {}", e);
+                }
             }
         }
 
@@ -122,14 +146,14 @@ impl Library {
     pub fn cancel_prepared(&self, id: &str) -> Result<()> {
         let dir_path = self.prepared.lock()
             .map_err(|e| {
-                eprintln!("[library] BUG-FIX: prepared mutex lock poisoned in cancel_prepared: {}", e);
+                tracing::error!("prepared mutex lock poisoned in cancel_prepared: {}", e);
                 LibraryError::Internal("prepared lock poisoned".to_string())
             })?
             .remove(id)
             .ok_or(LibraryError::NotFound(format!("No prepared meeting with id {}", id)))?;
 
         self.fs.delete_meeting_dir(&dir_path)?;
-        eprintln!("[library] cancel_prepared: removed id={}, dir={:?}", id, dir_path);
+        tracing::info!("cancel_prepared: removed id={}, dir={:?}", id, dir_path);
         Ok(())
     }
 
@@ -152,12 +176,12 @@ impl Library {
         let transcript = if self.fs.has_artifact(&meeting.dir_path, &ArtifactKind::TranscriptJson) {
             let data = self.fs.read_artifact(&meeting.dir_path, &ArtifactKind::TranscriptJson)?;
             let json_str = String::from_utf8_lossy(&data).into_owned();
-            eprintln!("[library] get_meeting_detail: loaded transcript.json ({} bytes) for meeting {}", json_str.len(), id);
+            tracing::info!("get_meeting_detail: loaded transcript.json ({} bytes) for meeting {}", json_str.len(), id);
             Some(json_str)
         } else if self.fs.has_artifact(&meeting.dir_path, &ArtifactKind::TranscriptTxt) {
             // Fallback to transcript.txt if transcript.json is not available
             let data = self.fs.read_artifact(&meeting.dir_path, &ArtifactKind::TranscriptTxt)?;
-            eprintln!("[library] get_meeting_detail: falling back to transcript.txt ({} bytes) for meeting {}", data.len(), id);
+            tracing::info!("get_meeting_detail: falling back to transcript.txt ({} bytes) for meeting {}", data.len(), id);
             Some(String::from_utf8_lossy(&data).into_owned())
         } else {
             None

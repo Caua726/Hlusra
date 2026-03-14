@@ -22,10 +22,10 @@ pub fn probe_available() -> HashMap<EncoderBackend, Vec<VideoCodec>> {
         for &codec in CODECS {
             if let Some(name) = backend.gst_element_name(codec) {
                 if gst::ElementFactory::find(name).is_some() {
-                    eprintln!("[encode] probed {:?}+{:?} -> {} (available)", backend, codec, name);
+                    tracing::debug!("probed {:?}+{:?} -> {} (available)", backend, codec, name);
                     codecs.push(codec);
                 } else {
-                    eprintln!("[encode] probed {:?}+{:?} -> {} (not found)", backend, codec, name);
+                    tracing::debug!("probed {:?}+{:?} -> {} (not found)", backend, codec, name);
                 }
             }
         }
@@ -43,7 +43,7 @@ pub fn create_video_encoder(
 ) -> Result<gst::Element, String> {
     let element_name = backend.gst_element_name(codec)
         .ok_or(format!("{:?} + {:?} is not supported", backend, codec))?;
-    eprintln!("[encode] creating encoder: {} ({:?} + {:?})", element_name, backend, codec);
+    tracing::info!("creating encoder: {} ({:?} + {:?})", element_name, backend, codec);
 
     let encoder = gst::ElementFactory::make(element_name)
         .build()
@@ -51,7 +51,7 @@ pub fn create_video_encoder(
 
     // Clamp bitrate: use default (2 Mbps) if zero or unreasonably low
     let bitrate = if config.bitrate == 0 {
-        eprintln!("[encode] bitrate is 0, using default 2000000 bps");
+        tracing::warn!("bitrate is 0, using default 2000000 bps");
         2_000_000
     } else {
         config.bitrate
@@ -70,7 +70,7 @@ pub fn create_video_encoder(
 pub fn create_audio_encoder(config: &AudioConfig) -> Result<gst::Element, String> {
     // Clamp audio bitrate: use default (64 kbps) if zero
     let bitrate = if config.bitrate == 0 {
-        eprintln!("[encode] audio bitrate is 0, using default 64000 bps");
+        tracing::warn!("audio bitrate is 0, using default 64000 bps");
         64_000
     } else {
         config.bitrate
@@ -92,12 +92,12 @@ pub fn create_video_encoder_with_fallback(
 ) -> Result<(gst::Element, EncoderBackend), String> {
     // Probe what is actually available before attempting anything
     let available = probe_available();
-    eprintln!("[encode] available backends: {:?}", available);
+    tracing::debug!("available backends: {:?}", available);
 
     // Try preferred first if it supports the codec
     if available.get(&preferred).map_or(false, |c| c.contains(&codec)) {
         if let Ok(enc) = create_video_encoder(preferred, codec, config) {
-            eprintln!("[encode] selected preferred backend: {:?}", preferred);
+            tracing::info!("selected preferred backend: {:?}", preferred);
             return Ok((enc, preferred));
         }
     }
@@ -110,7 +110,7 @@ pub fn create_video_encoder_with_fallback(
         if let Some(codecs) = available.get(&backend) {
             if codecs.contains(&codec) {
                 if let Ok(enc) = create_video_encoder(backend, codec, config) {
-                    eprintln!("[encode] selected fallback backend: {:?}", backend);
+                    tracing::info!("selected fallback backend: {:?}", backend);
                     return Ok((enc, backend));
                 }
             }

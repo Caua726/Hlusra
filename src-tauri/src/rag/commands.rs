@@ -179,7 +179,11 @@ pub async fn chat_message(
             .store
             .lock()
             .map_err(|e| RagCommandError::Other(e.to_string()))?;
-        let chunks = store.search(&meeting_id, &query_embedding, config.top_k)?;
+        let scored_chunks = store.search(&meeting_id, &query_embedding, config.top_k)?;
+
+        // Extract just the chunks for prompt building (distances are
+        // available for future scoring/filtering).
+        let chunks: Vec<_> = scored_chunks.into_iter().map(|(c, _score)| c).collect();
 
         (config, chunks)
     };
@@ -196,12 +200,12 @@ pub async fn chat_message(
         match chunk_result {
             Ok(text) => {
                 if let Err(e) = app.emit("chat-stream-chunk", &text) {
-                    eprintln!("[rag] failed to emit chat-stream-chunk: {e}");
+                    tracing::error!("failed to emit chat-stream-chunk: {e}");
                 }
             }
             Err(e) => {
                 if let Err(emit_err) = app.emit("chat-stream-error", e.to_string()) {
-                    eprintln!("[rag] failed to emit chat-stream-error: {emit_err}");
+                    tracing::error!("failed to emit chat-stream-error: {emit_err}");
                 }
                 return Err(RagCommandError::Chat(e));
             }
@@ -209,7 +213,7 @@ pub async fn chat_message(
     }
 
     if let Err(e) = app.emit("chat-stream-done", ()) {
-        eprintln!("[rag] failed to emit chat-stream-done: {e}");
+        tracing::error!("failed to emit chat-stream-done: {e}");
     }
     Ok(())
 }
@@ -274,8 +278,9 @@ async fn do_index_meeting(
         .map_err(|e| RagCommandError::Other(e.to_string()))?
         .clone();
 
-    // Chunk the transcript.
-    let chunks = chunk_transcript(id, &transcript, config.chunk_size);
+    // Chunk the transcript with ~20% overlap for better retrieval.
+    let overlap = config.chunk_size / 5;
+    let chunks = chunk_transcript(id, &transcript, config.chunk_size, overlap);
     if chunks.is_empty() {
         // Nothing to index — still mark as ready (empty transcript).
         return Ok(());

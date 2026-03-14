@@ -49,11 +49,16 @@ fn is_cjk_char(ch: char) -> bool {
     )
 }
 
-/// Split a `TranscriptResult` into chunks of approximately `chunk_size` tokens.
+/// Split a `TranscriptResult` into chunks of approximately `chunk_size` tokens,
+/// with optional overlap between consecutive chunks.
 ///
 /// The chunker groups consecutive transcript segments until the running token
 /// count reaches or exceeds `chunk_size`, then starts a new chunk.  Segment
 /// boundaries are always respected — a segment is never split mid-text.
+///
+/// When `overlap` is non-zero, the last segments whose combined token count
+/// fits within `overlap` are retained in the buffer for the next chunk.  This
+/// produces overlapping context windows that improve retrieval quality.
 ///
 /// Each chunk preserves the `start_time` of its first segment and the
 /// `end_time` of its last segment.
@@ -61,6 +66,7 @@ pub fn chunk_transcript(
     meeting_id: &str,
     transcript: &TranscriptResult,
     chunk_size: usize,
+    overlap: usize,
 ) -> Vec<Chunk> {
     if chunk_size == 0 {
         return Vec::new();
@@ -70,11 +76,17 @@ pub fn chunk_transcript(
         return Vec::new();
     }
 
+    /// A buffered segment with its precomputed token count.
+    struct BufSeg {
+        text: String,
+        tokens: usize,
+        start: f64,
+        end: f64,
+    }
+
     let mut chunks: Vec<Chunk> = Vec::new();
-    let mut current_texts: Vec<String> = Vec::new();
+    let mut buffer: Vec<BufSeg> = Vec::new();
     let mut current_tokens: usize = 0;
-    let mut current_start: f64 = transcript.segments[0].start;
-    let mut current_end: f64 = transcript.segments[0].end;
     let mut chunk_index: usize = 0;
 
     for segment in &transcript.segments {
@@ -88,44 +100,73 @@ pub fn chunk_transcript(
         // If adding this segment would exceed the limit and we already have
         // content, flush the current chunk first.
         if current_tokens > 0 && current_tokens + seg_tokens > chunk_size {
-            let text = current_texts.join(" ").trim().to_string();
+            let text = buffer
+                .iter()
+                .map(|s| s.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ")
+                .trim()
+                .to_string();
             if !text.is_empty() {
+                let start_time = buffer.first().map(|s| s.start).unwrap_or(0.0);
+                let end_time = buffer.last().map(|s| s.end).unwrap_or(0.0);
                 chunks.push(Chunk {
                     id: Uuid::new_v4().to_string(),
                     meeting_id: meeting_id.to_string(),
                     text,
-                    start_time: current_start,
-                    end_time: current_end,
+                    start_time,
+                    end_time,
                     chunk_index,
                 });
                 chunk_index += 1;
             }
 
-            current_texts.clear();
-            current_tokens = 0;
-            current_start = segment.start;
+            // Retain the last segments that fit within `overlap` tokens.
+            if overlap > 0 {
+                let mut keep_tokens: usize = 0;
+                let mut keep_from = buffer.len();
+                for (i, seg) in buffer.iter().enumerate().rev() {
+                    if keep_tokens + seg.tokens > overlap {
+                        break;
+                    }
+                    keep_tokens += seg.tokens;
+                    keep_from = i;
+                }
+                buffer.drain(..keep_from);
+                current_tokens = keep_tokens;
+            } else {
+                buffer.clear();
+                current_tokens = 0;
+            }
         }
 
-        // If the buffer is empty, set start from this segment.
-        if current_texts.is_empty() {
-            current_start = segment.start;
-        }
-
-        current_texts.push(segment.text.clone());
+        buffer.push(BufSeg {
+            text: segment.text.clone(),
+            tokens: seg_tokens,
+            start: segment.start,
+            end: segment.end,
+        });
         current_tokens += seg_tokens;
-        current_end = segment.end;
     }
 
     // Flush remaining content.
-    if !current_texts.is_empty() {
-        let text = current_texts.join(" ").trim().to_string();
+    if !buffer.is_empty() {
+        let text = buffer
+            .iter()
+            .map(|s| s.text.as_str())
+            .collect::<Vec<_>>()
+            .join(" ")
+            .trim()
+            .to_string();
         if !text.is_empty() {
+            let start_time = buffer.first().map(|s| s.start).unwrap_or(0.0);
+            let end_time = buffer.last().map(|s| s.end).unwrap_or(0.0);
             chunks.push(Chunk {
                 id: Uuid::new_v4().to_string(),
                 meeting_id: meeting_id.to_string(),
                 text,
-                start_time: current_start,
-                end_time: current_end,
+                start_time,
+                end_time,
                 chunk_index,
             });
         }
@@ -155,7 +196,7 @@ mod tests {
             segments: vec![],
             full_text: String::new(),
         };
-        let chunks = chunk_transcript("m1", &tr, 500);
+        let chunks = chunk_transcript("m1", &tr, 500, 0);
         assert!(chunks.is_empty());
     }
 
@@ -166,7 +207,7 @@ mod tests {
             segments: vec![make_segment(0.0, 5.0, "Hello world")],
             full_text: "Hello world".into(),
         };
-        let chunks = chunk_transcript("m1", &tr, 500);
+        let chunks = chunk_transcript("m1", &tr, 500, 0);
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].meeting_id, "m1");
         assert_eq!(chunks[0].chunk_index, 0);
@@ -188,7 +229,7 @@ mod tests {
             ],
             full_text: String::new(),
         };
-        let chunks = chunk_transcript("m1", &tr, 5);
+        let chunks = chunk_transcript("m1", &tr, 5, 0);
         assert_eq!(chunks.len(), 4);
         assert_eq!(chunks[0].chunk_index, 0);
         assert_eq!(chunks[3].chunk_index, 3);
@@ -205,7 +246,7 @@ mod tests {
             full_text: String::new(),
         };
         // chunk_size big enough to keep both in one chunk
-        let chunks = chunk_transcript("m1", &tr, 500);
+        let chunks = chunk_transcript("m1", &tr, 500, 0);
         assert_eq!(chunks.len(), 1);
         assert!((chunks[0].start_time - 10.0).abs() < f64::EPSILON);
         assert!((chunks[0].end_time - 20.0).abs() < f64::EPSILON);
@@ -244,9 +285,64 @@ mod tests {
             ],
             full_text: String::new(),
         };
-        let chunks = chunk_transcript("m1", &tr, 1);
+        let chunks = chunk_transcript("m1", &tr, 1, 0);
         let ids: std::collections::HashSet<&str> =
             chunks.iter().map(|c| c.id.as_str()).collect();
         assert_eq!(ids.len(), chunks.len());
+    }
+
+    #[test]
+    fn test_overlap_retains_trailing_segments() {
+        // 4 segments, each 3 tokens. chunk_size=5 flushes after each segment.
+        // overlap=3 means after flush the last segment (3 tokens) is retained.
+        let tr = TranscriptResult {
+            language: "en".into(),
+            segments: vec![
+                make_segment(0.0, 2.0, "one two three"),
+                make_segment(2.0, 4.0, "four five six"),
+                make_segment(4.0, 6.0, "seven eight nine"),
+            ],
+            full_text: String::new(),
+        };
+        let chunks = chunk_transcript("m1", &tr, 5, 3);
+        // With overlap, chunk 0 = seg0, then seg0 retained + seg1 triggers flush
+        // -> chunk 1 = seg0+seg1, then seg1 retained + seg2 triggers flush
+        // -> chunk 2 = seg1+seg2 (final flush).
+        // Actually: first iteration, seg0(3 tokens) fits. seg1: 3+3=6>5, flush
+        // seg0 as chunk0. Retain seg0(3<=3). Buffer=[seg0(3)]. Add seg1: 3+3=6>5,
+        // flush [seg0,seg1] as chunk1. Retain seg1(3<=3). Buffer=[seg1(3)].
+        // Add seg2: 3+3=6>5, flush [seg1,seg2] as chunk2. Retain seg2. Final
+        // flush: chunk3=[seg2].
+        // Wait, the flush happens BEFORE adding the new segment.
+        // Let me re-trace:
+        // Start: buffer=[], tokens=0
+        // seg0(3): 0+3<=5, push. buffer=[seg0], tokens=3
+        // seg1(3): 3+3=6>5, flush buffer=[seg0]->chunk0. Retain: seg0(3<=3).
+        //   buffer=[seg0], tokens=3. Push seg1: buffer=[seg0,seg1], tokens=6
+        // seg2(3): 6+3=9>5, flush buffer=[seg0,seg1]->chunk1. Retain: seg1(3<=3).
+        //   buffer=[seg1], tokens=3. Push seg2: buffer=[seg1,seg2], tokens=6
+        // End: flush buffer=[seg1,seg2]->chunk2.
+        assert_eq!(chunks.len(), 3);
+        // chunk1 should contain text from seg0 and seg1 (overlap carried seg0)
+        assert!(chunks[1].text.contains("one"));
+        assert!(chunks[1].text.contains("four"));
+        // chunk2 should contain text from seg1 and seg2 (overlap carried seg1)
+        assert!(chunks[2].text.contains("four"));
+        assert!(chunks[2].text.contains("seven"));
+    }
+
+    #[test]
+    fn test_zero_overlap_is_same_as_no_overlap() {
+        let tr = TranscriptResult {
+            language: "en".into(),
+            segments: vec![
+                make_segment(0.0, 2.0, "one two three"),
+                make_segment(2.0, 4.0, "four five six"),
+            ],
+            full_text: String::new(),
+        };
+        let no_overlap = chunk_transcript("m1", &tr, 5, 0);
+        assert_eq!(no_overlap.len(), 2);
+        assert!(!no_overlap[1].text.contains("one"));
     }
 }

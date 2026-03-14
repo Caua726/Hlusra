@@ -1,8 +1,24 @@
 use std::fs;
-use std::io;
+use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use tauri::Emitter;
 
 use crate::transcription::types::{all_models, WhisperModel};
+
+/// Global flag used to signal cancellation of an in-progress model download.
+static DOWNLOAD_CANCELLED: AtomicBool = AtomicBool::new(false);
+
+/// Sets the cancellation flag so the next iteration of the download loop aborts.
+pub fn cancel_download() {
+    DOWNLOAD_CANCELLED.store(true, Ordering::SeqCst);
+}
+
+/// Clears the cancellation flag. Called at the start of every download.
+fn reset_cancel_flag() {
+    DOWNLOAD_CANCELLED.store(false, Ordering::SeqCst);
+}
 
 /// Default model name used when no explicit selection has been made.
 const DEFAULT_MODEL: &str = "tiny";
@@ -43,7 +59,11 @@ pub fn get_downloaded_models() -> Result<Vec<WhisperModel>, String> {
 /// Downloads a model by name from Hugging Face.
 ///
 /// The file is written atomically: we download to a `.part` file first, then rename.
-pub fn download_model(model_name: &str) -> Result<(), String> {
+/// Emits `model-download-progress` events to the frontend and checks for
+/// cancellation on every chunk.
+pub fn download_model(model_name: &str, app: &tauri::AppHandle) -> Result<(), String> {
+    reset_cancel_flag();
+
     let catalogue = all_models();
     let model = catalogue
         .iter()
@@ -70,10 +90,41 @@ pub fn download_model(model_name: &str) -> Result<(), String> {
             ));
         }
 
+        let total = response.content_length().unwrap_or(0);
         let mut file = fs::File::create(&part_path)
             .map_err(|e| format!("Failed to create temp file: {e}"))?;
-        io::copy(&mut response, &mut file)
-            .map_err(|e| format!("Failed to download {model_name}: {e}"))?;
+
+        let mut downloaded: u64 = 0;
+        let mut buf = vec![0u8; 8192];
+
+        loop {
+            // Check cancellation flag before reading next chunk.
+            if DOWNLOAD_CANCELLED.load(Ordering::SeqCst) {
+                return Err("Download cancelled".to_string());
+            }
+
+            let n = response
+                .read(&mut buf)
+                .map_err(|e| format!("Failed to download {model_name}: {e}"))?;
+            if n == 0 {
+                break;
+            }
+            file.write_all(&buf[..n])
+                .map_err(|e| format!("Failed to write {model_name}: {e}"))?;
+            downloaded += n as u64;
+
+            // Emit progress roughly every 100 KB.
+            if downloaded % 102_400 < 8192 {
+                let _ = app.emit(
+                    "model-download-progress",
+                    serde_json::json!({
+                        "model": model_name,
+                        "downloaded": downloaded,
+                        "total": total,
+                    }),
+                );
+            }
+        }
 
         file.sync_all()
             .map_err(|e| format!("Failed to sync model file to disk: {e}"))?;
@@ -105,7 +156,7 @@ pub fn get_active_model() -> Result<WhisperModel, String> {
         DEFAULT_MODEL.to_string()
     };
 
-    let mut models = list_available_models()?;
+    let models = list_available_models()?;
     models
         .into_iter()
         .find(|m| m.name == name)

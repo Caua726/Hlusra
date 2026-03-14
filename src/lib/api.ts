@@ -226,6 +226,10 @@ export async function downloadModel(model: string): Promise<void> {
   return invoke("download_model", { model });
 }
 
+export async function cancelDownload(): Promise<void> {
+  return invoke("cancel_download");
+}
+
 export async function getActiveModel(): Promise<WhisperModel> {
   return invoke("get_active_model");
 }
