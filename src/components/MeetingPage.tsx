@@ -89,10 +89,10 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
       return;
     }
 
-    // For audio-only: use preview.ogg (small, browser-compatible)
-    // For video: use recording.mkv (WebKitGTK plays via GStreamer)
-    // Use readFile + Blob since convertFileSrc has encoding issues on Linux
-    const mediaFile = meeting.has_video ? "recording.mkv" : "preview.ogg";
+    // audio.ogg = full audio extracted from MKV in OGG/Opus (browser-compatible)
+    // recording.mkv = original recording (for video, WebKitGTK plays via GStreamer)
+    // readFile + Blob because convertFileSrc has URL encoding issues on Linux
+    const mediaFile = meeting.has_video ? "recording.mkv" : "audio.ogg";
     const mediaPath = meeting.dir_path + "/" + mediaFile;
     const mimeType = meeting.has_video ? "video/x-matroska" : "audio/ogg";
 
@@ -106,8 +106,8 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
       } catch (e) {
         if (cancelled) return;
         console.error("[MeetingPage] failed to load media:", e);
-        // Try fallback: if preview.ogg doesn't exist, try recording.mkv directly
-        if (!meeting.has_video && mediaFile === "preview.ogg") {
+        // Fallback: if audio.ogg doesn't exist (old recordings), try recording.mkv
+        if (!meeting.has_video && mediaFile === "audio.ogg") {
           try {
             const fallbackPath = meeting.dir_path + "/recording.mkv";
             const bytes = await readFile(fallbackPath);

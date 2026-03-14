@@ -113,26 +113,27 @@ impl Library {
             }
         }
 
-        // Generate audio preview (OGG/Opus) for browser-compatible playback (non-fatal)
+        // Extract full audio as OGG/Opus for browser-compatible playback (non-fatal)
+        // This is the complete audio, not a preview — browsers can't play MKV natively
         {
             let recording_path = meeting.dir_path.join("recording.mkv");
-            let preview_path = meeting.dir_path.join("preview.ogg");
+            let audio_path = meeting.dir_path.join("audio.ogg");
             match std::process::Command::new("ffmpeg")
                 .args(["-y", "-loglevel", "error", "-i"])
                 .arg(&recording_path)
-                .args(["-vn", "-codec:a", "libopus", "-b:a", "48k"])
-                .arg(&preview_path)
+                .args(["-vn", "-codec:a", "libopus", "-b:a", "128k"])
+                .arg(&audio_path)
                 .output()
             {
                 Ok(output) if output.status.success() => {
-                    tracing::info!("audio preview generated: {:?}", preview_path);
+                    tracing::info!("audio playback file generated: {:?}", audio_path);
                 }
                 Ok(output) => {
                     let stderr = String::from_utf8_lossy(&output.stderr);
-                    tracing::error!("audio preview generation failed: {}", stderr);
+                    tracing::error!("audio playback generation failed: {}", stderr);
                 }
                 Err(e) => {
-                    tracing::error!("failed to run ffmpeg for audio preview: {}", e);
+                    tracing::error!("failed to run ffmpeg for audio playback: {}", e);
                 }
             }
         }
