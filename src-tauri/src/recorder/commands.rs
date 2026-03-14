@@ -108,8 +108,13 @@ pub fn stop_recording(
     };
 
     // Library tracks dir_path internally from prepare_meeting
+    eprintln!("[recorder] finalizing meeting {}...", meeting_id);
     let meeting = library.finalize_meeting(&meeting_id, info)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            eprintln!("[recorder] finalize_meeting failed: {}", e);
+            format!("Falha ao salvar reunião: {}", e)
+        })?;
+    eprintln!("[recorder] meeting finalized: {:?}", meeting.id);
 
     Ok(meeting)
 }
