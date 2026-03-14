@@ -61,9 +61,16 @@ impl Library {
         let dir_name = format!("{}_{}", now.format("%Y-%m-%d"), &id[..8]);
         let dir_path = self.fs.create_meeting_dir(&dir_name)?;
 
-        // Track prepared meeting internally
-        self.prepared.lock().unwrap().insert(id.clone(), dir_path.clone());
+        // BUG FIX: Use map_err instead of unwrap() to avoid panicking if the mutex is
+        // poisoned. All other mutex locks in this file already use map_err.
+        self.prepared.lock()
+            .map_err(|e| {
+                eprintln!("[library] BUG-FIX: prepared mutex lock poisoned in prepare_meeting: {}", e);
+                LibraryError::Internal("prepared lock poisoned".to_string())
+            })?
+            .insert(id.clone(), dir_path.clone());
 
+        eprintln!("[library] prepare_meeting: id={}, dir={:?}", id, dir_path);
         Ok(PreparedMeeting { id, dir_path })
     }
 
@@ -72,7 +79,14 @@ impl Library {
         let now = Utc::now();
         let title = format!("Reunião {}", now.format("%Y-%m-%d %H:%M"));
 
-        let dir_path = self.prepared.lock().unwrap().remove(id)
+        // BUG FIX: Use map_err instead of unwrap() to avoid panicking if the mutex is
+        // poisoned. All other mutex locks in this file already use map_err.
+        let dir_path = self.prepared.lock()
+            .map_err(|e| {
+                eprintln!("[library] BUG-FIX: prepared mutex lock poisoned in finalize_meeting: {}", e);
+                LibraryError::Internal("prepared lock poisoned".to_string())
+            })?
+            .remove(id)
             .ok_or(LibraryError::NotFound(format!("No prepared meeting with id {}", id)))?;
 
         let tracks = info.tracks.clone();
@@ -104,9 +118,20 @@ impl Library {
     pub fn get_meeting_detail(&self, id: &str) -> Result<MeetingDetail> {
         let meeting = self.get_meeting(id)?;
 
-        // Optionally read transcript.txt from filesystem
-        let transcript = if self.fs.has_artifact(&meeting.dir_path, &ArtifactKind::TranscriptTxt) {
+        // BUG FIX: Read transcript.json (structured JSON) instead of transcript.txt (plain text).
+        // The frontend's TranscriptView component tries to JSON.parse() this field to extract
+        // segments with timestamps for the clickable segment view. Reading transcript.txt
+        // (plain text) always caused JSON.parse to fail, so users never saw the structured
+        // transcript view with clickable timestamps.
+        let transcript = if self.fs.has_artifact(&meeting.dir_path, &ArtifactKind::TranscriptJson) {
+            let data = self.fs.read_artifact(&meeting.dir_path, &ArtifactKind::TranscriptJson)?;
+            let json_str = String::from_utf8_lossy(&data).into_owned();
+            eprintln!("[library] get_meeting_detail: loaded transcript.json ({} bytes) for meeting {}", json_str.len(), id);
+            Some(json_str)
+        } else if self.fs.has_artifact(&meeting.dir_path, &ArtifactKind::TranscriptTxt) {
+            // Fallback to transcript.txt if transcript.json is not available
             let data = self.fs.read_artifact(&meeting.dir_path, &ArtifactKind::TranscriptTxt)?;
+            eprintln!("[library] get_meeting_detail: falling back to transcript.txt ({} bytes) for meeting {}", data.len(), id);
             Some(String::from_utf8_lossy(&data).into_owned())
         } else {
             None
