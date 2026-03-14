@@ -14,7 +14,9 @@ pub struct RecordingPipeline {
 }
 
 impl RecordingPipeline {
-    /// Build an audio-only pipeline (2 PipeWire sources -> Opus -> MKV)
+    /// Build an audio-only pipeline (PipeWire mic source -> Opus -> MKV)
+    /// TODO: Add system audio capture as second track once pipewire-rs device
+    /// selection is implemented. For MVP, only mic is captured.
     pub fn build_audio_only(
         output_path: PathBuf,
         audio_config: &AudioConfig,
@@ -22,14 +24,8 @@ impl RecordingPipeline {
         let pipeline = gst::Pipeline::new();
 
         // Mic source — captures from PipeWire default input device
-        // TODO: pipewire-rs integration for explicit device selection is deferred.
-        // For now we rely on PipeWire routing the default source automatically.
-        let mic_props = gst::Structure::builder("props")
-            .field("media.class", "Audio/Source")
-            .build();
         let mic_src = gst::ElementFactory::make("pipewiresrc")
             .name("mic_src")
-            .property("stream-properties", &mic_props)
             .build()
             .map_err(|e| format!("pipewiresrc: {}", e))?;
 
@@ -37,23 +33,6 @@ impl RecordingPipeline {
         let mic_convert = gst::ElementFactory::make("audioconvert").name("mic_convert").build().map_err(|e| e.to_string())?;
         let mic_resample = gst::ElementFactory::make("audioresample").name("mic_resample").build().map_err(|e| e.to_string())?;
         let mic_enc = encode::create_audio_encoder(audio_config)?;
-
-        // System audio source — captures from PipeWire default monitor (desktop audio)
-        // TODO: pipewire-rs integration for explicit device selection is deferred.
-        // For now we rely on PipeWire routing the default monitor automatically.
-        let sys_props = gst::Structure::builder("props")
-            .field("media.class", "Audio/Sink")
-            .build();
-        let sys_src = gst::ElementFactory::make("pipewiresrc")
-            .name("sys_src")
-            .property("stream-properties", &sys_props)
-            .build()
-            .map_err(|e| format!("pipewiresrc: {}", e))?;
-
-        let sys_queue = gst::ElementFactory::make("queue").name("sys_queue").build().map_err(|e| e.to_string())?;
-        let sys_convert = gst::ElementFactory::make("audioconvert").name("sys_convert").build().map_err(|e| e.to_string())?;
-        let sys_resample = gst::ElementFactory::make("audioresample").name("sys_resample").build().map_err(|e| e.to_string())?;
-        let sys_enc = encode::create_audio_encoder(audio_config)?;
 
         // Muxer + sink
         let mux = gst::ElementFactory::make("matroskamux").name("mux").build().map_err(|e| e.to_string())?;
@@ -65,21 +44,13 @@ impl RecordingPipeline {
 
         pipeline.add_many(&[
             &mic_src, &mic_queue, &mic_convert, &mic_resample, &mic_enc,
-            &sys_src, &sys_queue, &sys_convert, &sys_resample, &sys_enc,
             &mux, &filesink,
         ]).map_err(|e| e.to_string())?;
 
-        // Link mic path: pipewiresrc -> queue -> audioconvert -> audioresample -> opusenc -> mux
+        // Link: pipewiresrc -> queue -> audioconvert -> audioresample -> opusenc -> mux -> filesink
         gst::Element::link_many(&[&mic_src, &mic_queue, &mic_convert, &mic_resample, &mic_enc])
             .map_err(|e| format!("Link mic: {}", e))?;
         mic_enc.link(&mux).map_err(|e| format!("Link mic->mux: {}", e))?;
-
-        // Link system path: pipewiresrc -> queue -> audioconvert -> audioresample -> opusenc -> mux
-        gst::Element::link_many(&[&sys_src, &sys_queue, &sys_convert, &sys_resample, &sys_enc])
-            .map_err(|e| format!("Link sys: {}", e))?;
-        sys_enc.link(&mux).map_err(|e| format!("Link sys->mux: {}", e))?;
-
-        // Link mux -> sink
         mux.link(&filesink).map_err(|e| format!("Link mux->sink: {}", e))?;
 
         Ok(Self {
