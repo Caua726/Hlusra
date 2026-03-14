@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { readFile } from "@tauri-apps/plugin-fs";
 import {
   getMeeting,
   updateMeetingTitle,
@@ -82,21 +82,49 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
   // For audio-only meetings: use preview.ogg (OGG/Opus is universally supported by browsers)
   useEffect(() => {
     let cancelled = false;
+    let url: string | null = null;
 
     if (!meeting || meeting.media_status !== "present") {
       setMediaBlobUrl(null);
       return;
     }
 
+    // For audio-only: use preview.ogg (small, browser-compatible)
+    // For video: use recording.mkv (WebKitGTK plays via GStreamer)
+    // Use readFile + Blob since convertFileSrc has encoding issues on Linux
     const mediaFile = meeting.has_video ? "recording.mkv" : "preview.ogg";
     const mediaPath = meeting.dir_path + "/" + mediaFile;
-    const assetUrl = convertFileSrc(mediaPath);
-    if (!cancelled) {
-      setMediaBlobUrl(assetUrl);
-    }
+    const mimeType = meeting.has_video ? "video/x-matroska" : "audio/ogg";
+
+    (async () => {
+      try {
+        const bytes = await readFile(mediaPath);
+        if (cancelled) return;
+        const blob = new Blob([bytes], { type: mimeType });
+        url = URL.createObjectURL(blob);
+        setMediaBlobUrl(url);
+      } catch (e) {
+        if (cancelled) return;
+        console.error("[MeetingPage] failed to load media:", e);
+        // Try fallback: if preview.ogg doesn't exist, try recording.mkv directly
+        if (!meeting.has_video && mediaFile === "preview.ogg") {
+          try {
+            const fallbackPath = meeting.dir_path + "/recording.mkv";
+            const bytes = await readFile(fallbackPath);
+            if (cancelled) return;
+            const blob = new Blob([bytes], { type: "audio/x-matroska" });
+            url = URL.createObjectURL(blob);
+            setMediaBlobUrl(url);
+          } catch {
+            // No playback available
+          }
+        }
+      }
+    })();
 
     return () => {
       cancelled = true;
+      if (url) URL.revokeObjectURL(url);
       setMediaBlobUrl(null);
     };
   }, [meeting?.id, meeting?.media_status, meeting?.has_video]);
