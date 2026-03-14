@@ -9,6 +9,7 @@ interface Props {
 export default function Gallery({ onSelectMeeting }: Props) {
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadMeetings();
@@ -20,18 +21,21 @@ export default function Gallery({ onSelectMeeting }: Props) {
       setMeetings(list);
     } catch (err) {
       console.error("Failed to load meetings:", err);
+      setError(String(err));
     } finally {
       setLoading(false);
     }
   }
 
-  if (loading) return <div className="loading">Loading...</div>;
+  if (loading) return <div className="loading">Carregando...</div>;
 
   return (
     <div className="gallery">
-      <h2>Reunioes</h2>
-      {meetings.length === 0 ? (
-        <p className="empty">Nenhuma reuniao gravada ainda.</p>
+      <h2>Reuniões</h2>
+      {error ? (
+        <p className="error-text">{error}</p>
+      ) : meetings.length === 0 ? (
+        <p className="empty">Nenhuma reunião gravada ainda.</p>
       ) : (
         <div className="meeting-grid">
           {meetings.map((m) => (
