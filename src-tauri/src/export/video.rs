@@ -4,6 +4,21 @@ use std::process::Command;
 use super::types::{resolve_output_path, SaveMode, VideoFormat};
 use super::ExportError;
 
+/// Probe the video codec of a source file using ffprobe.
+/// Returns the codec name (e.g. "hevc", "h264", "av1").
+fn probe_video_codec(source: &Path) -> Result<String, ExportError> {
+    let output = Command::new("ffprobe")
+        .args(["-v", "error", "-select_streams", "v:0",
+               "-show_entries", "stream=codec_name", "-of", "csv=p=0"])
+        .arg(source)
+        .output()?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        return Err(ExportError::FfmpegFailed(format!("ffprobe failed: {}", stderr)));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
 /// Export video from a meeting's recording.mkv to the specified format.
 ///
 /// Transcodes from the source MKV (H.265) to the target codec and container.
@@ -36,18 +51,25 @@ pub fn export_video(
         .arg("-i")
         .arg(&source);
 
-    // Determine if we can stream-copy video or need to transcode.
-    // Source is H.265/MKV. If target is also H.265, we can copy the stream.
-    if format.needs_transcode() {
+    // Probe the actual source codec to decide stream-copy vs transcode.
+    let source_codec = probe_video_codec(&source).unwrap_or_else(|_| "unknown".to_string());
+    let target_codec = match format {
+        VideoFormat::Mp4H264 | VideoFormat::MkvH264 => "h264",
+        VideoFormat::Mp4H265 | VideoFormat::MkvH265 => "hevc",
+    };
+    // Stream-copy only if source matches target codec exactly
+    let can_copy = source_codec == target_codec
+        || (target_codec == "hevc" && source_codec == "hevc")
+        || (target_codec == "h264" && source_codec == "h264");
+    if can_copy {
+        cmd.arg("-codec:v").arg("copy");
+    } else {
         cmd.arg("-codec:v")
             .arg(format.codec_name())
             .arg("-preset")
             .arg("medium")
             .arg("-crf")
             .arg("20");
-    } else {
-        // Same codec as source, stream copy
-        cmd.arg("-codec:v").arg("copy");
     }
 
     // Audio handling: MP4 cannot hold Opus, so transcode to AAC.
