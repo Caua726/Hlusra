@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { MeetingSummary, listMeetings } from "../lib/api";
+import { formatSize } from "../lib/format";
 import MeetingCard from "./MeetingCard";
 
 interface Props {
@@ -10,10 +11,7 @@ interface Props {
 
 function formatTotalSize(meetings: MeetingSummary[]): string {
   const total = meetings.reduce((acc, m) => acc + m.file_size, 0);
-  if (total < 1024) return `${total} B`;
-  if (total < 1024 * 1024) return `${(total / 1024).toFixed(0)} KB`;
-  if (total < 1024 * 1024 * 1024) return `${(total / (1024 * 1024)).toFixed(0)} MB`;
-  return `${(total / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  return formatSize(total);
 }
 
 export default function Gallery({ onSelectMeeting, onBack, onSettings }: Props) {
@@ -52,6 +50,7 @@ export default function Gallery({ onSelectMeeting, onBack, onSettings }: Props) 
           <div className="flex items-center gap-3">
             <button
               onClick={onBack}
+              aria-label="Voltar"
               className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -111,10 +110,13 @@ export default function Gallery({ onSelectMeeting, onBack, onSettings }: Props) 
       <footer className="glass shrink-0 border-t border-white/5">
         <div className="px-5 h-10 flex items-center justify-between">
           <span className="text-[10px] text-white/15">
-            {meetings.length} reuniões &middot; {formatTotalSize(meetings)}
+            {search.trim()
+              ? `${filtered.length} de ${meetings.length} reuniões`
+              : `${meetings.length} reuniões`} &middot; {formatTotalSize(search.trim() ? filtered : meetings)}
           </span>
           <button
             onClick={onSettings}
+            aria-label="Configurações"
             className="text-white/20 hover:text-white/50 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

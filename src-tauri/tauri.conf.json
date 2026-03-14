@@ -16,6 +16,17 @@
         "title": "Hlusra",
         "width": 800,
         "height": 400
+      },
+      {
+        "label": "widget",
+        "title": "Hlusra - Gravando",
+        "url": "widget.html",
+        "width": 200,
+        "height": 80,
+        "decorations": false,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "visible": false
       }
     ]
   }

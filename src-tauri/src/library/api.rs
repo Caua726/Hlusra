@@ -104,6 +104,15 @@ impl Library {
             chat_status: ChatStatus::NotIndexed,
         };
 
+        // Generate thumbnail for video meetings (non-fatal on failure)
+        if info.has_video {
+            let video_path = meeting.dir_path.join("recording.mkv");
+            let thumb_path = meeting.dir_path.join("thumbnail.jpg");
+            if let Err(e) = super::thumbnail::generate_thumbnail(&video_path, &thumb_path) {
+                eprintln!("[library] thumbnail generation failed: {}", e);
+            }
+        }
+
         let db = self.db.lock().map_err(|_| LibraryError::Internal("lock poisoned".to_string()))?;
         db.insert_meeting(&meeting, &tracks)?;
 

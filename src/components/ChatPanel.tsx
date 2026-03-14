@@ -150,7 +150,7 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
         </header>
         <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
           {currentStatus === "failed" && (
-            <p className="text-red-400/80 text-xs">A indexação falhou.</p>
+            <p className="text-red-400/80 text-xs" role="alert">A indexação falhou.</p>
           )}
           <p className="text-white/30 text-[13px]">A reunião precisa ser indexada antes de usar o chat.</p>
           <button
@@ -160,7 +160,7 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
           >
             {indexing ? "Indexando..." : "Indexar reunião"}
           </button>
-          {error && <p className="text-red-400/80 text-xs">{error}</p>}
+          {error && <p className="text-red-400/80 text-xs" role="alert">{error}</p>}
         </div>
       </>
     );
@@ -237,15 +237,20 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
 
       {/* Input */}
       <div className="p-4 border-t border-white/5 shrink-0">
-        <div className="flex gap-2">
-          <input
-            type="text"
+        <div className="flex gap-2 items-end">
+          <textarea
+            rows={2}
             placeholder="Pergunte sobre a reunião..."
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              // Auto-grow: reset height then set to scrollHeight
+              e.target.style.height = "auto";
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+            }}
             onKeyDown={handleKeyDown}
             disabled={sending}
-            className="flex-1 glass-input rounded-xl px-4 py-3 text-[13px] text-white/70 placeholder-white/20 focus:outline-none focus:border-brand-500/30 focus:shadow-[0_0_0_3px_rgba(244,63,94,0.08)] transition-all"
+            className="flex-1 glass-input rounded-xl px-4 py-3 text-[13px] text-white/70 placeholder-white/20 focus:outline-none focus:border-brand-500/30 focus:shadow-[0_0_0_3px_rgba(244,63,94,0.08)] transition-all resize-none"
           />
           <button
             onClick={handleSend}
@@ -258,7 +263,7 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
             </svg>
           </button>
         </div>
-        {error && <p className="text-red-400/80 text-xs mt-2">{error}</p>}
+        {error && <p className="text-red-400/80 text-xs mt-2" role="alert">{error}</p>}
       </div>
     </>
   );

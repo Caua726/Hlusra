@@ -21,6 +21,11 @@ impl ScreenCapture {
     }
 
     /// Opens the XDG Desktop Portal screen picker and returns a PipeWire source.
+    ///
+    /// **Important:** This method should only be called once per `ScreenCapture`
+    /// instance. Calling it again will overwrite the stored `OwnedFd`, which
+    /// invalidates any `PipeWireSource` returned by a previous call (its
+    /// `RawFd` would point to a closed file descriptor).
     pub async fn request_screen(&mut self) -> Result<PipeWireSource, String> {
         let proxy = Screencast::new()
             .await

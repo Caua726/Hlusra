@@ -49,19 +49,35 @@ pub fn create_video_encoder(
         .build()
         .map_err(|e| format!("Failed to create encoder {}: {}", element_name, e))?;
 
+    // Clamp bitrate: use default (2 Mbps) if zero or unreasonably low
+    let bitrate = if config.bitrate == 0 {
+        eprintln!("[encode] bitrate is 0, using default 2000000 bps");
+        2_000_000
+    } else {
+        config.bitrate
+    };
+
     // Set bitrate -- property name varies by encoder
     if element_name == "svtav1enc" {
-        encoder.set_property("target-bitrate", config.bitrate / 1000);
+        encoder.set_property("target-bitrate", bitrate / 1000);
     } else {
-        encoder.set_property("bitrate", config.bitrate / 1000);
+        encoder.set_property("bitrate", bitrate / 1000);
     }
 
     Ok(encoder)
 }
 
 pub fn create_audio_encoder(config: &AudioConfig) -> Result<gst::Element, String> {
+    // Clamp audio bitrate: use default (64 kbps) if zero
+    let bitrate = if config.bitrate == 0 {
+        eprintln!("[encode] audio bitrate is 0, using default 64000 bps");
+        64_000
+    } else {
+        config.bitrate
+    };
+
     let encoder = gst::ElementFactory::make("opusenc")
-        .property("bitrate", config.bitrate as i32)
+        .property("bitrate", bitrate as i32)
         .build()
         .map_err(|e| format!("Failed to create opusenc: {}", e))?;
     Ok(encoder)

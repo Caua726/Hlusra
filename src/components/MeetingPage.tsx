@@ -8,7 +8,7 @@ import {
   reindexMeeting,
 } from "../lib/api";
 import type { MeetingDetail } from "../lib/api";
-import { formatDuration, formatError } from "../lib/format";
+import { formatDuration, formatSize, formatError } from "../lib/format";
 import TranscriptView from "./TranscriptView";
 
 interface Props {
@@ -27,13 +27,6 @@ function formatDate(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
 const TRANSCRIPTION_BADGE: Record<string, { label: string; cls: string }> = {
@@ -231,7 +224,7 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
           </div>
         </header>
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-red-400/80 text-xs">{error || "Reunião não encontrada."}</p>
+          <p className="text-red-400/80 text-xs" role="alert">{error || "Reunião não encontrada."}</p>
         </div>
       </>
     );
@@ -425,7 +418,7 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
           )}
         </div>
 
-        {actionError && <p className="text-red-400/80 text-xs">{actionError}</p>}
+        {actionError && <p className="text-red-400/80 text-xs" role="alert">{actionError}</p>}
       </div>
 
       {/* Delete confirmation overlay */}

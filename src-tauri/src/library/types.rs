@@ -129,14 +129,18 @@ impl MediaStatus {
             Self::Deleted => "deleted",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Self {
+impl std::str::FromStr for MediaStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "present" => Self::Present,
-            "deleted" => Self::Deleted,
+            "present" => Ok(Self::Present),
+            "deleted" => Ok(Self::Deleted),
             other => {
-                eprintln!("WARNING: unknown MediaStatus value '{}', defaulting to Present", other);
-                Self::Present
+                eprintln!("[types] WARNING: unknown MediaStatus '{}', defaulting to Present", other);
+                Ok(Self::Present)
             }
         }
     }
@@ -151,16 +155,20 @@ impl TranscriptionStatus {
             Self::Failed => "failed",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Self {
+impl std::str::FromStr for TranscriptionStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "pending" => Self::Pending,
-            "processing" => Self::Processing,
-            "done" => Self::Done,
-            "failed" => Self::Failed,
+            "pending" => Ok(Self::Pending),
+            "processing" => Ok(Self::Processing),
+            "done" => Ok(Self::Done),
+            "failed" => Ok(Self::Failed),
             other => {
-                eprintln!("WARNING: unknown TranscriptionStatus value '{}', defaulting to Pending", other);
-                Self::Pending
+                eprintln!("[types] WARNING: unknown TranscriptionStatus '{}', defaulting to Pending", other);
+                Ok(Self::Pending)
             }
         }
     }
@@ -175,16 +183,20 @@ impl ChatStatus {
             Self::Failed => "failed",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Self {
+impl std::str::FromStr for ChatStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "not_indexed" => Self::NotIndexed,
-            "indexing" => Self::Indexing,
-            "ready" => Self::Ready,
-            "failed" => Self::Failed,
+            "not_indexed" => Ok(Self::NotIndexed),
+            "indexing" => Ok(Self::Indexing),
+            "ready" => Ok(Self::Ready),
+            "failed" => Ok(Self::Failed),
             other => {
-                eprintln!("WARNING: unknown ChatStatus value '{}', defaulting to NotIndexed", other);
-                Self::NotIndexed
+                eprintln!("[types] WARNING: unknown ChatStatus '{}', defaulting to NotIndexed", other);
+                Ok(Self::NotIndexed)
             }
         }
     }
@@ -196,8 +208,8 @@ mod tests {
 
     #[test]
     fn test_media_status_roundtrip() {
-        assert_eq!(MediaStatus::from_str(MediaStatus::Present.as_str()), MediaStatus::Present);
-        assert_eq!(MediaStatus::from_str(MediaStatus::Deleted.as_str()), MediaStatus::Deleted);
+        assert_eq!(MediaStatus::Present.as_str().parse::<MediaStatus>().unwrap(), MediaStatus::Present);
+        assert_eq!(MediaStatus::Deleted.as_str().parse::<MediaStatus>().unwrap(), MediaStatus::Deleted);
     }
 
     #[test]

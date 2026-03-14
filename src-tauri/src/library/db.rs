@@ -119,9 +119,9 @@ impl LibraryDb {
                 duration_secs: row.get(3)?,
                 has_video: row.get::<_, i32>(4)? != 0,
                 file_size: row.get::<_, i64>(5)? as u64,
-                media_status: MediaStatus::from_str(&row.get::<_, String>(6)?),
-                transcription_status: TranscriptionStatus::from_str(&row.get::<_, String>(7)?),
-                chat_status: ChatStatus::from_str(&row.get::<_, String>(8)?),
+                media_status: row.get::<_, String>(6)?.parse::<MediaStatus>().unwrap_or_default(),
+                transcription_status: row.get::<_, String>(7)?.parse::<TranscriptionStatus>().unwrap_or_default(),
+                chat_status: row.get::<_, String>(8)?.parse::<ChatStatus>().unwrap_or_default(),
             })
         })?;
 
@@ -133,7 +133,7 @@ impl LibraryDb {
             "UPDATE meetings SET title = ?1 WHERE id = ?2",
             params![title, id],
         )?;
-        if self.conn.changes() < 1 {
+        if self.conn.changes() == 0 {
             return Err(rusqlite::Error::QueryReturnedNoRows);
         }
         Ok(())
@@ -144,7 +144,7 @@ impl LibraryDb {
             "UPDATE meetings SET transcription_status = ?1 WHERE id = ?2",
             params![status.as_str(), id],
         )?;
-        if self.conn.changes() < 1 {
+        if self.conn.changes() == 0 {
             return Err(rusqlite::Error::QueryReturnedNoRows);
         }
         Ok(())
@@ -155,7 +155,7 @@ impl LibraryDb {
             "UPDATE meetings SET chat_status = ?1 WHERE id = ?2",
             params![status.as_str(), id],
         )?;
-        if self.conn.changes() < 1 {
+        if self.conn.changes() == 0 {
             return Err(rusqlite::Error::QueryReturnedNoRows);
         }
         Ok(())
@@ -166,7 +166,7 @@ impl LibraryDb {
             "UPDATE meetings SET media_status = ?1 WHERE id = ?2",
             params![status.as_str(), id],
         )?;
-        if self.conn.changes() < 1 {
+        if self.conn.changes() == 0 {
             return Err(rusqlite::Error::QueryReturnedNoRows);
         }
         Ok(())
@@ -174,7 +174,7 @@ impl LibraryDb {
 
     pub fn delete_meeting(&self, id: &str) -> rusqlite::Result<()> {
         self.conn.execute("DELETE FROM meetings WHERE id = ?1", params![id])?;
-        if self.conn.changes() < 1 {
+        if self.conn.changes() == 0 {
             return Err(rusqlite::Error::QueryReturnedNoRows);
         }
         Ok(())
@@ -194,9 +194,9 @@ impl LibraryDb {
             file_size: row.get::<_, i64>(5)? as u64,
             dir_path: std::path::PathBuf::from(row.get::<_, String>(6)?),
             tracks,
-            media_status: MediaStatus::from_str(&row.get::<_, String>(8)?),
-            transcription_status: TranscriptionStatus::from_str(&row.get::<_, String>(9)?),
-            chat_status: ChatStatus::from_str(&row.get::<_, String>(10)?),
+            media_status: row.get::<_, String>(8)?.parse::<MediaStatus>().unwrap_or_default(),
+            transcription_status: row.get::<_, String>(9)?.parse::<TranscriptionStatus>().unwrap_or_default(),
+            chat_status: row.get::<_, String>(10)?.parse::<ChatStatus>().unwrap_or_default(),
         })
     }
 }

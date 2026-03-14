@@ -110,7 +110,7 @@ export default function ExportDialog({ meetingId, hasVideo, hasTranscript, meeti
       {/* Header */}
       <header className="glass shrink-0 border-b border-white/5">
         <div className="px-5 h-12 flex items-center gap-3">
-          <button onClick={onBack} className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+          <button onClick={onBack} aria-label="Voltar" className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
             </svg>
@@ -202,7 +202,7 @@ export default function ExportDialog({ meetingId, hasVideo, hasTranscript, meeti
         )}
 
         {result && <p className="text-emerald-400 text-[11px] break-all">Salvo em: {result}</p>}
-        {error && <p className="text-red-400/80 text-xs">{error}</p>}
+        {error && <p className="text-red-400/80 text-xs" role="alert">{error}</p>}
       </div>
 
       {/* Save buttons */}
