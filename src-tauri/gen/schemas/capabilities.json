@@ -1,1 +1,1 @@
-{}
+{"default":{"identifier":"default","description":"Default capabilities for Hlusra","local":true,"windows":["main"],"permissions":["core:default","core:event:default","core:event:allow-emit","core:event:allow-emit-to","core:event:allow-listen","dialog:default","dialog:allow-open","dialog:allow-save","fs:default","fs:allow-read-file","fs:allow-exists",{"identifier":"fs:scope","allow":[{"path":"$HOME/Hlusra/**"},{"path":"$HOME/.local/share/hlusra/**"},{"path":"$HOME/.config/hlusra/**"},{"path":"/tmp/**"}]},"core:window:default","core:window:allow-set-size"]}}

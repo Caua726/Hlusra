@@ -15,12 +15,23 @@ interface Props {
   onBack: () => void;
 }
 
+type SettingsTab = "geral" | "video" | "audio" | "trans" | "rag";
+
+const TABS: { id: SettingsTab; label: string }[] = [
+  { id: "geral", label: "Geral" },
+  { id: "video", label: "Video" },
+  { id: "audio", label: "Audio" },
+  { id: "trans", label: "Transcricao" },
+  { id: "rag", label: "RAG / Chat" },
+];
+
 export default function SettingsPage({ onBack }: Props) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [activeTab, setActiveTab] = useState<SettingsTab>("geral");
 
   // Encoder probing
   const [encoders, setEncoders] = useState<Record<string, string[]>>({});
@@ -96,478 +107,644 @@ export default function SettingsPage({ onBack }: Props) {
     }
   }
 
-  const btnBack = "bg-transparent text-zinc-500 border-none py-1.5 text-sm cursor-pointer mb-4 transition-colors duration-150 hover:text-zinc-100";
-  const inputCls = "w-full bg-zinc-800 text-zinc-100 border border-zinc-700 rounded-md px-2.5 py-2 text-sm font-[inherit] outline-none transition-colors duration-150 focus:border-blue-500";
-  const selectCls = "w-full bg-zinc-800 text-zinc-100 border border-zinc-700 rounded-md px-2.5 py-2 text-sm font-[inherit] cursor-pointer appearance-none outline-none transition-colors duration-150 pr-8 bg-[url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2012%2012%22%3E%3Cpath%20fill%3D%22%23888%22%20d%3D%22M6%208L1%203h10z%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_0.65rem_center] focus:border-blue-500";
+  const inputCls = "w-full glass-input rounded-xl px-4 py-2.5 text-[12px] text-white/70 focus:outline-none focus:border-white/20 transition-all";
+  const selectCls = "w-full glass-input rounded-xl px-4 py-2.5 text-[12px] text-white/70 appearance-none cursor-pointer focus:outline-none transition-all";
 
   if (loading) {
     return (
-      <div>
-        <button className={btnBack} onClick={onBack}>&larr; Voltar</button>
-        <div className="text-center p-12 text-zinc-500">Carregando configuracoes...</div>
-      </div>
+      <>
+        <header className="glass shrink-0 border-b border-white/5">
+          <div className="px-5 h-12 flex items-center gap-3">
+            <button onClick={onBack} className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h1 className="text-sm font-semibold text-white/80">Configuracoes</h1>
+          </div>
+        </header>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-6 h-6 border-[3px] border-white/10 border-t-brand-500 rounded-full animate-[spin_0.7s_linear_infinite]" />
+        </div>
+      </>
     );
   }
 
   if (!settings) {
     return (
-      <div>
-        <button className={btnBack} onClick={onBack}>&larr; Voltar</button>
-        <p className="text-red-500 text-sm mt-2">{error || "Falha ao carregar configuracoes."}</p>
-      </div>
+      <>
+        <header className="glass shrink-0 border-b border-white/5">
+          <div className="px-5 h-12 flex items-center gap-3">
+            <button onClick={onBack} className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h1 className="text-sm font-semibold text-white/80">Configuracoes</h1>
+          </div>
+        </header>
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-red-500 text-sm">{error || "Falha ao carregar configuracoes."}</p>
+        </div>
+      </>
     );
   }
 
   const backendOptions = Object.keys(encoders);
 
   return (
-    <div className="pb-12">
-      <button className={btnBack} onClick={onBack}>&larr; Voltar</button>
-      <h2 className="text-2xl font-semibold mb-6">Configuracoes</h2>
+    <>
+      {/* Header */}
+      <header className="glass shrink-0 border-b border-white/5">
+        <div className="px-5 h-12 flex items-center gap-3">
+          <button onClick={onBack} className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <h1 className="text-sm font-semibold text-white/80">Configuracoes</h1>
+        </div>
+      </header>
 
-      {/* General */}
-      <section className="bg-zinc-800/50 border border-zinc-700 rounded-xl p-5 mb-5">
-        <h3 className="text-base font-semibold mb-4 text-zinc-100">Geral</h3>
-        <div className="mb-3.5">
-          <label className="block text-xs text-zinc-500 mb-1 font-medium">Diretorio de gravacoes</label>
-          <input
-            type="text"
-            className={inputCls}
-            value={settings.general.recordings_dir}
-            onChange={(e) =>
-              update((s) => ({
-                ...s,
-                general: { ...s.general, recordings_dir: e.target.value },
-              }))
-            }
-          />
-        </div>
-        <div className="mb-3.5">
-          <label className="block text-xs text-zinc-500 mb-1 font-medium">Nome automatico de reuniao</label>
-          <input
-            type="text"
-            className={inputCls}
-            value={settings.general.auto_meeting_name}
-            onChange={(e) =>
-              update((s) => ({
-                ...s,
-                general: { ...s.general, auto_meeting_name: e.target.value },
-              }))
-            }
-          />
-        </div>
-        <label className="flex items-center gap-2 text-zinc-500 text-sm cursor-pointer">
-          <input
-            type="checkbox"
-            checked={settings.general.start_minimized}
-            onChange={(e) =>
-              update((s) => ({
-                ...s,
-                general: { ...s.general, start_minimized: e.target.checked },
-              }))
-            }
-            className="accent-rose-500 w-4 h-4"
-          />
-          <span>Iniciar minimizado</span>
-        </label>
-      </section>
-
-      {/* Audio */}
-      <section className="bg-zinc-800/50 border border-zinc-700 rounded-xl p-5 mb-5">
-        <h3 className="text-base font-semibold mb-4 text-zinc-100">Audio</h3>
-        <div className="mb-3.5">
-          <label className="block text-xs text-zinc-500 mb-1 font-medium">Codec</label>
-          <select
-            className={selectCls}
-            value={settings.audio.codec}
-            onChange={(e) =>
-              update((s) => ({
-                ...s,
-                audio: { ...s.audio, codec: e.target.value },
-              }))
-            }
-          >
-            <option value="opus">Opus</option>
-            <option value="aac">AAC</option>
-            <option value="flac">FLAC</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs text-zinc-500 mb-1 font-medium">Bitrate (bps)</label>
-          <input
-            type="number"
-            className={inputCls}
-            value={settings.audio.bitrate}
-            onChange={(e) =>
-              update((s) => ({
-                ...s,
-                audio: { ...s.audio, bitrate: Number(e.target.value) },
-              }))
-            }
-          />
-        </div>
-      </section>
-
-      {/* Video */}
-      <section className="bg-zinc-800/50 border border-zinc-700 rounded-xl p-5 mb-5">
-        <h3 className="text-base font-semibold mb-4 text-zinc-100">Video</h3>
-        <div className="mb-3.5">
-          <label className="block text-xs text-zinc-500 mb-1 font-medium">Codec</label>
-          <select
-            className={selectCls}
-            value={settings.video.codec}
-            onChange={(e) =>
-              update((s) => ({
-                ...s,
-                video: { ...s.video, codec: e.target.value },
-              }))
-            }
-          >
-            <option value="h264">H.264</option>
-            <option value="h265">H.265</option>
-            <option value="av1">AV1</option>
-          </select>
-        </div>
-        <div className="mb-3.5">
-          <label className="block text-xs text-zinc-500 mb-1 font-medium">Backend</label>
-          <select
-            className={selectCls}
-            value={settings.video.backend}
-            onChange={(e) =>
-              update((s) => ({
-                ...s,
-                video: { ...s.video, backend: e.target.value },
-              }))
-            }
-          >
-            {backendOptions.length > 0 ? (
-              backendOptions.map((b) => (
-                <option key={b} value={b}>
-                  {b.charAt(0).toUpperCase() + b.slice(1)}
-                </option>
-              ))
-            ) : (
-              <>
-                <option value="vaapi">Vaapi</option>
-                <option value="cuda">Cuda</option>
-                <option value="vulkan">Vulkan</option>
-                <option value="software">Software</option>
-              </>
-            )}
-          </select>
-        </div>
-        <div className="mb-3.5">
-          <label className="block text-xs text-zinc-500 mb-1 font-medium">Conteiner</label>
-          <select
-            className={selectCls}
-            value={settings.video.container}
-            onChange={(e) =>
-              update((s) => ({
-                ...s,
-                video: { ...s.video, container: e.target.value },
-              }))
-            }
-          >
-            <option value="mkv">MKV</option>
-            <option value="mp4">MP4</option>
-          </select>
-        </div>
-        <div className="mb-3.5">
-          <label className="block text-xs text-zinc-500 mb-1 font-medium">Bitrate (bps)</label>
-          <input
-            type="number"
-            className={inputCls}
-            value={settings.video.bitrate}
-            onChange={(e) =>
-              update((s) => ({
-                ...s,
-                video: { ...s.video, bitrate: Number(e.target.value) },
-              }))
-            }
-          />
-        </div>
-        <div className="flex gap-4 flex-wrap">
-          <div className="flex-1">
-            <label className="block text-xs text-zinc-500 mb-1 font-medium">FPS</label>
-            <input
-              type="number"
-              className={inputCls}
-              value={settings.video.fps}
-              onChange={(e) =>
-                update((s) => ({
-                  ...s,
-                  video: { ...s.video, fps: Number(e.target.value) },
-                }))
-              }
-            />
-          </div>
-          <div className="flex-1">
-            <label className="block text-xs text-zinc-500 mb-1 font-medium">Resolucao</label>
-            <select
-              className={selectCls}
-              value={settings.video.resolution}
-              onChange={(e) =>
-                update((s) => ({
-                  ...s,
-                  video: { ...s.video, resolution: e.target.value },
-                }))
-              }
+      <div className="flex-1 flex overflow-hidden">
+        {/* Sidebar */}
+        <nav className="w-44 shrink-0 border-r border-white/5 py-3 px-2 space-y-0.5">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`w-full text-left px-3 py-2 rounded-lg text-[12px] transition-all border-0 cursor-pointer bg-transparent ${
+                activeTab === tab.id
+                  ? "text-white/70 bg-white/5 font-medium"
+                  : "text-white/30 hover:text-white/60 hover:bg-white/[0.03]"
+              }`}
             >
-              <option value="480p">480p</option>
-              <option value="720p">720p</option>
-              <option value="1080p">1080p</option>
-              <option value="1440p">1440p</option>
-              <option value="2160p">2160p (4K)</option>
-            </select>
-          </div>
-        </div>
-      </section>
+              {tab.label}
+            </button>
+          ))}
+        </nav>
 
-      {/* Transcription */}
-      <section className="bg-zinc-800/50 border border-zinc-700 rounded-xl p-5 mb-5">
-        <h3 className="text-base font-semibold mb-4 text-zinc-100">Transcricao</h3>
-        <div className="mb-3.5">
-          <label className="block text-xs text-zinc-500 mb-1 font-medium">Provedor</label>
-          <select
-            className={selectCls}
-            value={settings.transcription.provider}
-            onChange={(e) =>
-              update((s) => ({
-                ...s,
-                transcription: { ...s.transcription, provider: e.target.value },
-              }))
-            }
-          >
-            <option value="local">Local (Whisper)</option>
-            <option value="api">API externa</option>
-          </select>
-        </div>
-
-        {settings.transcription.provider === "api" && (
-          <>
-            <div className="mb-3.5">
-              <label className="block text-xs text-zinc-500 mb-1 font-medium">URL da API</label>
-              <input
-                type="text"
-                className={inputCls}
-                value={settings.transcription.api_url}
-                onChange={(e) =>
-                  update((s) => ({
-                    ...s,
-                    transcription: { ...s.transcription, api_url: e.target.value },
-                  }))
-                }
-                placeholder="https://api.openai.com/v1"
-              />
-            </div>
-            <div className="mb-3.5">
-              <label className="block text-xs text-zinc-500 mb-1 font-medium">Chave da API</label>
-              <input
-                type="password"
-                className={inputCls}
-                value={settings.transcription.api_key}
-                onChange={(e) =>
-                  update((s) => ({
-                    ...s,
-                    transcription: { ...s.transcription, api_key: e.target.value },
-                  }))
-                }
-                placeholder="sk-..."
-              />
-            </div>
-            <div className="mb-3.5">
-              <label className="block text-xs text-zinc-500 mb-1 font-medium">Modelo</label>
-              <input
-                type="text"
-                className={inputCls}
-                value={settings.transcription.model}
-                onChange={(e) =>
-                  update((s) => ({
-                    ...s,
-                    transcription: { ...s.transcription, model: e.target.value },
-                  }))
-                }
-                placeholder="whisper-1"
-              />
-            </div>
-          </>
-        )}
-
-        {settings.transcription.provider === "local" && models.length > 0 && (
-          <div className="mb-3.5">
-            <label className="block text-xs text-zinc-500 mb-1 font-medium">Modelos Whisper</label>
-            <div className="flex flex-col gap-2">
-              {models.map((m) => (
-                <div key={m.name} className="flex justify-between items-center px-3 py-2 bg-zinc-800 rounded-md border border-zinc-700">
-                  <div className="flex gap-4 items-center">
-                    <span className="text-sm font-medium">{m.name}</span>
-                    <span className="text-xs text-zinc-500">
-                      {(m.size_bytes / 1_000_000).toFixed(0)} MB
-                    </span>
-                  </div>
-                  <div className="shrink-0">
-                    {m.downloaded ? (
-                      <button
-                        className={`px-3 py-1 text-xs rounded-md cursor-pointer border transition-colors duration-150 ${activeModelName === m.name ? "bg-green-500 text-white border-green-500 cursor-default" : "bg-transparent text-zinc-100 border-zinc-700 hover:bg-zinc-900"}`}
-                        onClick={() => handleSetActiveModel(m.name)}
-                        disabled={activeModelName === m.name}
-                      >
-                        {activeModelName === m.name ? "Ativo" : "Usar"}
-                      </button>
-                    ) : (
-                      <button
-                        className="px-3 py-1 text-xs rounded-md cursor-pointer bg-rose-500 text-white border-none hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed"
-                        onClick={() => handleDownloadModel(m.name)}
-                        disabled={downloadingModel !== null}
-                      >
-                        {downloadingModel === m.name ? "Baixando..." : "Baixar"}
-                      </button>
-                    )}
-                  </div>
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {/* Geral */}
+          {activeTab === "geral" && (
+            <div className="space-y-5">
+              <h2 className="text-[10px] font-bold text-white/25 uppercase tracking-[0.2em] mb-4">Geral</h2>
+              <div>
+                <label className="block text-[12px] text-white/50 mb-2">Diretorio de gravacoes</label>
+                <input
+                  type="text"
+                  className={inputCls}
+                  value={settings.general.recordings_dir}
+                  onChange={(e) =>
+                    update((s) => ({
+                      ...s,
+                      general: { ...s.general, recordings_dir: e.target.value },
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="block text-[12px] text-white/50 mb-2">Nome automatico</label>
+                <input
+                  type="text"
+                  className={inputCls}
+                  value={settings.general.auto_meeting_name}
+                  onChange={(e) =>
+                    update((s) => ({
+                      ...s,
+                      general: { ...s.general, auto_meeting_name: e.target.value },
+                    }))
+                  }
+                />
+                <p className="text-[10px] text-white/15 mt-1.5">Variaveis disponiveis: {"{date}"}, {"{time}"}</p>
+              </div>
+              <div className="flex items-center justify-between py-2">
+                <div>
+                  <label className="text-[12px] text-white/50">Iniciar minimizado</label>
+                  <p className="text-[10px] text-white/15 mt-0.5">Abre na bandeja do sistema</p>
                 </div>
-              ))}
+                <label className="relative cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={settings.general.start_minimized}
+                    onChange={(e) =>
+                      update((s) => ({
+                        ...s,
+                        general: { ...s.general, start_minimized: e.target.checked },
+                      }))
+                    }
+                  />
+                  <div className="w-10 h-[22px] rounded-full bg-white/5 border border-white/10 peer-checked:bg-brand-500/15 peer-checked:border-brand-500/40 transition-all" />
+                  <div className="absolute left-[3px] top-[3px] w-4 h-4 rounded-full bg-white/20 peer-checked:bg-brand-500 peer-checked:translate-x-[18px] transition-all pointer-events-none peer-checked:shadow-[0_0_12px_rgba(244,63,94,0.6)]" />
+                </label>
+              </div>
+              <div className="pt-4 border-t border-white/5 flex items-center gap-3">
+                <button
+                  className="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-[12px] font-medium transition-all active:scale-[0.98] glow-sm border-0 cursor-pointer disabled:opacity-40"
+                  onClick={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? "Salvando..." : "Salvar"}
+                </button>
+                {saved && <span className="text-emerald-400 text-[11px]">Salvo!</span>}
+                {error && <span className="text-red-500 text-[11px]">{error}</span>}
+              </div>
             </div>
-          </div>
-        )}
-      </section>
+          )}
 
-      {/* RAG */}
-      <section className="bg-zinc-800/50 border border-zinc-700 rounded-xl p-5 mb-5">
-        <h3 className="text-base font-semibold mb-4 text-zinc-100">RAG / Chat</h3>
-        <div className="flex gap-4 flex-wrap">
-          <div className="flex-1 mb-3.5">
-            <label className="block text-xs text-zinc-500 mb-1 font-medium">URL embeddings</label>
-            <input
-              type="text"
-              className={inputCls}
-              value={settings.rag.embeddings_url}
-              onChange={(e) =>
-                update((s) => ({
-                  ...s,
-                  rag: { ...s.rag, embeddings_url: e.target.value },
-                }))
-              }
-              placeholder="https://openrouter.ai/api/v1"
-            />
-          </div>
-          <div className="flex-1 mb-3.5">
-            <label className="block text-xs text-zinc-500 mb-1 font-medium">Chave embeddings</label>
-            <input
-              type="password"
-              className={inputCls}
-              value={settings.rag.embeddings_api_key}
-              onChange={(e) =>
-                update((s) => ({
-                  ...s,
-                  rag: { ...s.rag, embeddings_api_key: e.target.value },
-                }))
-              }
-            />
-          </div>
-        </div>
-        <div className="mb-3.5">
-          <label className="block text-xs text-zinc-500 mb-1 font-medium">Modelo embeddings</label>
-          <input
-            type="text"
-            className={inputCls}
-            value={settings.rag.embeddings_model}
-            onChange={(e) =>
-              update((s) => ({
-                ...s,
-                rag: { ...s.rag, embeddings_model: e.target.value },
-              }))
-            }
-            placeholder="openai/text-embedding-3-small"
-          />
-        </div>
+          {/* Video */}
+          {activeTab === "video" && (
+            <div className="space-y-5">
+              <h2 className="text-[10px] font-bold text-white/25 uppercase tracking-[0.2em] mb-4">Video</h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[12px] text-white/50 mb-2">Codec</label>
+                  <select
+                    className={selectCls}
+                    value={settings.video.codec}
+                    onChange={(e) =>
+                      update((s) => ({
+                        ...s,
+                        video: { ...s.video, codec: e.target.value },
+                      }))
+                    }
+                  >
+                    <option value="h265">H.265</option>
+                    <option value="h264">H.264</option>
+                    <option value="av1">AV1</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] text-white/50 mb-2">Backend</label>
+                  <select
+                    className={selectCls}
+                    value={settings.video.backend}
+                    onChange={(e) =>
+                      update((s) => ({
+                        ...s,
+                        video: { ...s.video, backend: e.target.value },
+                      }))
+                    }
+                  >
+                    {backendOptions.length > 0 ? (
+                      backendOptions.map((b) => (
+                        <option key={b} value={b}>
+                          {b.charAt(0).toUpperCase() + b.slice(1)}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="vaapi">Vaapi</option>
+                        <option value="cuda">Cuda</option>
+                        <option value="vulkan">Vulkan</option>
+                        <option value="software">Software</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] text-white/50 mb-2">FPS</label>
+                  <input
+                    type="number"
+                    className={inputCls}
+                    value={settings.video.fps}
+                    onChange={(e) =>
+                      update((s) => ({
+                        ...s,
+                        video: { ...s.video, fps: Number(e.target.value) },
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] text-white/50 mb-2">Resolucao</label>
+                  <select
+                    className={selectCls}
+                    value={settings.video.resolution}
+                    onChange={(e) =>
+                      update((s) => ({
+                        ...s,
+                        video: { ...s.video, resolution: e.target.value },
+                      }))
+                    }
+                  >
+                    <option value="480p">480p</option>
+                    <option value="720p">720p</option>
+                    <option value="1080p">1080p</option>
+                    <option value="1440p">1440p</option>
+                    <option value="2160p">2160p (4K)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] text-white/50 mb-2">Bitrate</label>
+                  <input
+                    type="number"
+                    className={inputCls}
+                    value={settings.video.bitrate}
+                    onChange={(e) =>
+                      update((s) => ({
+                        ...s,
+                        video: { ...s.video, bitrate: Number(e.target.value) },
+                      }))
+                    }
+                  />
+                  <p className="text-[10px] text-white/15 mt-1">Em bps (2000000 = 2 Mbps)</p>
+                </div>
+                <div>
+                  <label className="block text-[12px] text-white/50 mb-2">Container</label>
+                  <select
+                    className={selectCls}
+                    value={settings.video.container}
+                    onChange={(e) =>
+                      update((s) => ({
+                        ...s,
+                        video: { ...s.video, container: e.target.value },
+                      }))
+                    }
+                  >
+                    <option value="mkv">MKV</option>
+                    <option value="mp4">MP4</option>
+                  </select>
+                </div>
+              </div>
+              <div className="pt-4 border-t border-white/5 flex items-center gap-3">
+                <button
+                  className="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-[12px] font-medium transition-all active:scale-[0.98] glow-sm border-0 cursor-pointer disabled:opacity-40"
+                  onClick={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? "Salvando..." : "Salvar"}
+                </button>
+                {saved && <span className="text-emerald-400 text-[11px]">Salvo!</span>}
+                {error && <span className="text-red-500 text-[11px]">{error}</span>}
+              </div>
+            </div>
+          )}
 
-        <div className="flex gap-4 flex-wrap">
-          <div className="flex-1 mb-3.5">
-            <label className="block text-xs text-zinc-500 mb-1 font-medium">URL chat</label>
-            <input
-              type="text"
-              className={inputCls}
-              value={settings.rag.chat_url}
-              onChange={(e) =>
-                update((s) => ({
-                  ...s,
-                  rag: { ...s.rag, chat_url: e.target.value },
-                }))
-              }
-              placeholder="https://openrouter.ai/api/v1"
-            />
-          </div>
-          <div className="flex-1 mb-3.5">
-            <label className="block text-xs text-zinc-500 mb-1 font-medium">Chave chat</label>
-            <input
-              type="password"
-              className={inputCls}
-              value={settings.rag.chat_api_key}
-              onChange={(e) =>
-                update((s) => ({
-                  ...s,
-                  rag: { ...s.rag, chat_api_key: e.target.value },
-                }))
-              }
-            />
-          </div>
-        </div>
-        <div className="mb-3.5">
-          <label className="block text-xs text-zinc-500 mb-1 font-medium">Modelo chat</label>
-          <input
-            type="text"
-            className={inputCls}
-            value={settings.rag.chat_model}
-            onChange={(e) =>
-              update((s) => ({
-                ...s,
-                rag: { ...s.rag, chat_model: e.target.value },
-              }))
-            }
-            placeholder="openai/gpt-4o-mini"
-          />
-        </div>
+          {/* Audio */}
+          {activeTab === "audio" && (
+            <div className="space-y-5">
+              <h2 className="text-[10px] font-bold text-white/25 uppercase tracking-[0.2em] mb-4">Audio</h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[12px] text-white/50 mb-2">Codec</label>
+                  <select
+                    className={selectCls}
+                    value={settings.audio.codec}
+                    onChange={(e) =>
+                      update((s) => ({
+                        ...s,
+                        audio: { ...s.audio, codec: e.target.value },
+                      }))
+                    }
+                  >
+                    <option value="opus">Opus</option>
+                    <option value="aac">AAC</option>
+                    <option value="flac">FLAC</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] text-white/50 mb-2">Bitrate</label>
+                  <input
+                    type="number"
+                    className={inputCls}
+                    value={settings.audio.bitrate}
+                    onChange={(e) =>
+                      update((s) => ({
+                        ...s,
+                        audio: { ...s.audio, bitrate: Number(e.target.value) },
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="pt-4 border-t border-white/5 flex items-center gap-3">
+                <button
+                  className="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-[12px] font-medium transition-all active:scale-[0.98] glow-sm border-0 cursor-pointer disabled:opacity-40"
+                  onClick={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? "Salvando..." : "Salvar"}
+                </button>
+                {saved && <span className="text-emerald-400 text-[11px]">Salvo!</span>}
+                {error && <span className="text-red-500 text-[11px]">{error}</span>}
+              </div>
+            </div>
+          )}
 
-        <div className="flex gap-4 flex-wrap">
-          <div className="flex-1 mb-3.5">
-            <label className="block text-xs text-zinc-500 mb-1 font-medium">Tamanho do chunk</label>
-            <input
-              type="number"
-              className={inputCls}
-              value={settings.rag.chunk_size}
-              onChange={(e) =>
-                update((s) => ({
-                  ...s,
-                  rag: { ...s.rag, chunk_size: Number(e.target.value) },
-                }))
-              }
-            />
-          </div>
-          <div className="flex-1 mb-3.5">
-            <label className="block text-xs text-zinc-500 mb-1 font-medium">Top-K resultados</label>
-            <input
-              type="number"
-              className={inputCls}
-              value={settings.rag.top_k}
-              onChange={(e) =>
-                update((s) => ({
-                  ...s,
-                  rag: { ...s.rag, top_k: Number(e.target.value) },
-                }))
-              }
-            />
-          </div>
-        </div>
-      </section>
+          {/* Transcricao */}
+          {activeTab === "trans" && (
+            <div className="space-y-5">
+              <h2 className="text-[10px] font-bold text-white/25 uppercase tracking-[0.2em] mb-4">Transcricao</h2>
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] text-white/50">Provedor</span>
+                <div className="flex bg-white/[0.03] rounded-xl p-1 border border-white/5">
+                  <button
+                    onClick={() =>
+                      update((s) => ({
+                        ...s,
+                        transcription: { ...s.transcription, provider: "local" },
+                      }))
+                    }
+                    className={`px-4 py-1.5 text-[10px] rounded-lg border-0 cursor-pointer transition-all ${
+                      settings.transcription.provider === "local"
+                        ? "bg-brand-500 text-white font-medium"
+                        : "text-white/30 hover:text-white/50 bg-transparent"
+                    }`}
+                  >
+                    Local
+                  </button>
+                  <button
+                    onClick={() =>
+                      update((s) => ({
+                        ...s,
+                        transcription: { ...s.transcription, provider: "api" },
+                      }))
+                    }
+                    className={`px-4 py-1.5 text-[10px] rounded-lg border-0 cursor-pointer transition-all ${
+                      settings.transcription.provider === "api"
+                        ? "bg-brand-500 text-white font-medium"
+                        : "text-white/30 hover:text-white/50 bg-transparent"
+                    }`}
+                  >
+                    API
+                  </button>
+                </div>
+              </div>
 
-      {/* Save */}
-      <div className="flex items-center gap-4 mt-2">
-        <button className="bg-rose-500 text-white border-none px-12 py-4 rounded-lg text-lg cursor-pointer transition-colors duration-150 font-medium hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed" onClick={handleSave} disabled={saving}>
-          {saving ? "Salvando..." : "Salvar configuracoes"}
-        </button>
-        {saved && <span className="text-green-500 text-sm">Configuracoes salvas!</span>}
-        {error && <p className="text-red-500 text-sm">{error}</p>}
+              {settings.transcription.provider === "local" && (
+                <div>
+                  <label className="block text-[12px] text-white/50 mb-2">Modelo</label>
+                  {models.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                      {models.map((m) => (
+                        <div key={m.name} className="flex justify-between items-center glass-input rounded-xl px-4 py-2.5">
+                          <div className="flex gap-4 items-center">
+                            <span className="text-[12px] font-medium text-white/70">{m.name}</span>
+                            <span className="text-[10px] text-white/30">
+                              {(m.size_bytes / 1_000_000).toFixed(0)} MB
+                            </span>
+                          </div>
+                          <div className="shrink-0">
+                            {m.downloaded ? (
+                              <button
+                                className={`px-3 py-1 text-[10px] rounded-lg cursor-pointer border-0 transition-all ${
+                                  activeModelName === m.name
+                                    ? "bg-emerald-500/15 text-emerald-400 cursor-default"
+                                    : "bg-transparent text-white/40 hover:text-white/70"
+                                }`}
+                                onClick={() => handleSetActiveModel(m.name)}
+                                disabled={activeModelName === m.name}
+                              >
+                                {activeModelName === m.name ? "Ativo" : "Usar"}
+                              </button>
+                            ) : (
+                              <button
+                                className="px-3 py-1 text-[10px] rounded-lg cursor-pointer bg-brand-500 text-white border-0 hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                                onClick={() => handleDownloadModel(m.name)}
+                                disabled={downloadingModel !== null}
+                              >
+                                {downloadingModel === m.name ? "Baixando..." : "Baixar"}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <select
+                      className={selectCls}
+                      value={settings.transcription.model}
+                      onChange={(e) =>
+                        update((s) => ({
+                          ...s,
+                          transcription: { ...s.transcription, model: e.target.value },
+                        }))
+                      }
+                    >
+                      <option value="tiny">tiny (75 MB)</option>
+                      <option value="base">base (150 MB)</option>
+                      <option value="small">small (500 MB)</option>
+                      <option value="medium">medium (1.5 GB)</option>
+                      <option value="large">large (3 GB)</option>
+                    </select>
+                  )}
+                </div>
+              )}
+
+              {settings.transcription.provider === "api" && (
+                <>
+                  <div>
+                    <label className="block text-[12px] text-white/50 mb-2">URL da API</label>
+                    <input
+                      type="text"
+                      className={inputCls}
+                      value={settings.transcription.api_url}
+                      onChange={(e) =>
+                        update((s) => ({
+                          ...s,
+                          transcription: { ...s.transcription, api_url: e.target.value },
+                        }))
+                      }
+                      placeholder="https://api.openai.com/v1"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[12px] text-white/50 mb-2">Chave da API</label>
+                    <input
+                      type="password"
+                      className={inputCls}
+                      value={settings.transcription.api_key}
+                      onChange={(e) =>
+                        update((s) => ({
+                          ...s,
+                          transcription: { ...s.transcription, api_key: e.target.value },
+                        }))
+                      }
+                      placeholder="sk-..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[12px] text-white/50 mb-2">Modelo</label>
+                    <input
+                      type="text"
+                      className={inputCls}
+                      value={settings.transcription.model}
+                      onChange={(e) =>
+                        update((s) => ({
+                          ...s,
+                          transcription: { ...s.transcription, model: e.target.value },
+                        }))
+                      }
+                      placeholder="whisper-1"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="pt-4 border-t border-white/5 flex items-center gap-3">
+                <button
+                  className="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-[12px] font-medium transition-all active:scale-[0.98] glow-sm border-0 cursor-pointer disabled:opacity-40"
+                  onClick={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? "Salvando..." : "Salvar"}
+                </button>
+                {saved && <span className="text-emerald-400 text-[11px]">Salvo!</span>}
+                {error && <span className="text-red-500 text-[11px]">{error}</span>}
+              </div>
+            </div>
+          )}
+
+          {/* RAG */}
+          {activeTab === "rag" && (
+            <div className="space-y-5">
+              <h2 className="text-[10px] font-bold text-white/25 uppercase tracking-[0.2em] mb-4">RAG / Chat</h2>
+              <div>
+                <label className="block text-[12px] text-white/50 mb-2">URL de Embeddings</label>
+                <input
+                  type="text"
+                  className={inputCls}
+                  value={settings.rag.embeddings_url}
+                  onChange={(e) =>
+                    update((s) => ({
+                      ...s,
+                      rag: { ...s.rag, embeddings_url: e.target.value },
+                    }))
+                  }
+                  placeholder="https://openrouter.ai/api/v1"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[12px] text-white/50 mb-2">API Key</label>
+                  <input
+                    type="password"
+                    className={inputCls}
+                    value={settings.rag.embeddings_api_key}
+                    onChange={(e) =>
+                      update((s) => ({
+                        ...s,
+                        rag: { ...s.rag, embeddings_api_key: e.target.value },
+                      }))
+                    }
+                    placeholder="sk-..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] text-white/50 mb-2">Modelo</label>
+                  <input
+                    type="text"
+                    className={inputCls}
+                    value={settings.rag.embeddings_model}
+                    onChange={(e) =>
+                      update((s) => ({
+                        ...s,
+                        rag: { ...s.rag, embeddings_model: e.target.value },
+                      }))
+                    }
+                    placeholder="text-embedding-3-small"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-white/5">
+                <div>
+                  <label className="block text-[12px] text-white/50 mb-2">URL do Chat</label>
+                  <input
+                    type="text"
+                    className={inputCls}
+                    value={settings.rag.chat_url}
+                    onChange={(e) =>
+                      update((s) => ({
+                        ...s,
+                        rag: { ...s.rag, chat_url: e.target.value },
+                      }))
+                    }
+                    placeholder="https://openrouter.ai/api/v1"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[12px] text-white/50 mb-2">Chave chat</label>
+                  <input
+                    type="password"
+                    className={inputCls}
+                    value={settings.rag.chat_api_key}
+                    onChange={(e) =>
+                      update((s) => ({
+                        ...s,
+                        rag: { ...s.rag, chat_api_key: e.target.value },
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] text-white/50 mb-2">Modelo chat</label>
+                  <input
+                    type="text"
+                    className={inputCls}
+                    value={settings.rag.chat_model}
+                    onChange={(e) =>
+                      update((s) => ({
+                        ...s,
+                        rag: { ...s.rag, chat_model: e.target.value },
+                      }))
+                    }
+                    placeholder="openai/gpt-4o-mini"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 pt-3 border-t border-white/5">
+                <div>
+                  <label className="block text-[12px] text-white/50 mb-2">Tamanho do chunk</label>
+                  <input
+                    type="number"
+                    className={inputCls}
+                    value={settings.rag.chunk_size}
+                    onChange={(e) =>
+                      update((s) => ({
+                        ...s,
+                        rag: { ...s.rag, chunk_size: Number(e.target.value) },
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-[12px] text-white/50 mb-2">Top-K resultados</label>
+                  <input
+                    type="number"
+                    className={inputCls}
+                    value={settings.rag.top_k}
+                    onChange={(e) =>
+                      update((s) => ({
+                        ...s,
+                        rag: { ...s.rag, top_k: Number(e.target.value) },
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-white/5 flex items-center gap-3">
+                <button
+                  className="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-[12px] font-medium transition-all active:scale-[0.98] glow-sm border-0 cursor-pointer disabled:opacity-40"
+                  onClick={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? "Salvando..." : "Salvar"}
+                </button>
+                {saved && <span className="text-emerald-400 text-[11px]">Salvo!</span>}
+                {error && <span className="text-red-500 text-[11px]">{error}</span>}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

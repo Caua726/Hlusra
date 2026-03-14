@@ -12,65 +12,72 @@ interface Props {
   meetingId: string;
   hasVideo: boolean;
   hasTranscript: boolean;
-  onClose: () => void;
+  meetingTitle: string;
+  onBack: () => void;
 }
 
-type ExportTab = "audio" | "video" | "transcript";
+type ExportType = "audio" | "video" | "transcript";
 
-const AUDIO_FORMATS: { value: AudioFormat; label: string }[] = [
-  { value: "mp3", label: "MP3" },
-  { value: "wav", label: "WAV" },
-  { value: "opus", label: "Opus" },
-  { value: "ogg", label: "OGG" },
+interface FormatOption {
+  type: ExportType;
+  value: string;
+  label: string;
+}
+
+const AUDIO_FORMATS: FormatOption[] = [
+  { type: "audio", value: "mp3", label: "MP3" },
+  { type: "audio", value: "wav", label: "WAV" },
+  { type: "audio", value: "opus", label: "Opus" },
+  { type: "audio", value: "ogg", label: "OGG" },
 ];
 
-const VIDEO_FORMATS: { value: VideoFormat; label: string }[] = [
-  { value: "mp4_h264", label: "MP4 (H.264)" },
-  { value: "mp4_h265", label: "MP4 (H.265)" },
-  { value: "mkv_h264", label: "MKV (H.264)" },
-  { value: "mkv_h265", label: "MKV (H.265)" },
+const VIDEO_FORMATS: FormatOption[] = [
+  { type: "video", value: "mp4_h264", label: "MP4 H.264" },
+  { type: "video", value: "mp4_h265", label: "MP4 H.265" },
+  { type: "video", value: "mkv_h264", label: "MKV H.264" },
+  { type: "video", value: "mkv_h265", label: "MKV H.265" },
 ];
 
-const TRANSCRIPT_FORMATS: { value: TranscriptFormat; label: string }[] = [
-  { value: "txt", label: "TXT" },
-  { value: "json", label: "JSON" },
-  { value: "srt", label: "SRT" },
-  { value: "pdf", label: "PDF" },
+const TRANSCRIPT_FORMATS: FormatOption[] = [
+  { type: "transcript", value: "txt", label: "TXT" },
+  { type: "transcript", value: "json", label: "JSON" },
+  { type: "transcript", value: "srt", label: "SRT" },
+  { type: "transcript", value: "pdf", label: "PDF" },
 ];
 
-function getExtension(tab: ExportTab, format: string): string {
-  if (tab === "audio") return format === "opus" ? "opus" : format;
-  if (tab === "video") return format.startsWith("mp4") ? "mp4" : "mkv";
+function getExtension(type: ExportType, format: string): string {
+  if (type === "audio") return format === "opus" ? "opus" : format;
+  if (type === "video") return format.startsWith("mp4") ? "mp4" : "mkv";
   return format;
 }
 
-export default function ExportDialog({ meetingId, hasVideo, hasTranscript, onClose }: Props) {
-  const [tab, setTab] = useState<ExportTab>("audio");
-  const [audioFormat, setAudioFormat] = useState<AudioFormat>("mp3");
-  const [videoFormat, setVideoFormat] = useState<VideoFormat>("mp4_h264");
-  const [transcriptFormat, setTranscriptFormat] = useState<TranscriptFormat>("txt");
+export default function ExportDialog({ meetingId, hasVideo, hasTranscript, meetingTitle, onBack }: Props) {
+  const [selectedType, setSelectedType] = useState<ExportType | null>(null);
+  const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  function getCurrentFormat(): string {
-    if (tab === "audio") return audioFormat;
-    if (tab === "video") return videoFormat;
-    return transcriptFormat;
+  function selectFormat(type: ExportType, format: string) {
+    setSelectedType(type);
+    setSelectedFormat(format);
+    setResult(null);
+    setError(null);
   }
 
   async function doExport(saveMode: SaveMode) {
+    if (!selectedType || !selectedFormat) return;
     setError(null);
     setResult(null);
     setExporting(true);
     try {
       let path: string;
-      if (tab === "audio") {
-        path = await exportAudio(meetingId, audioFormat, saveMode);
-      } else if (tab === "video") {
-        path = await exportVideo(meetingId, videoFormat, saveMode);
+      if (selectedType === "audio") {
+        path = await exportAudio(meetingId, selectedFormat as AudioFormat, saveMode);
+      } else if (selectedType === "video") {
+        path = await exportVideo(meetingId, selectedFormat as VideoFormat, saveMode);
       } else {
-        path = await exportTranscript(meetingId, transcriptFormat, saveMode);
+        path = await exportTranscript(meetingId, selectedFormat as TranscriptFormat, saveMode);
       }
       setResult(path);
     } catch (e) {
@@ -85,7 +92,8 @@ export default function ExportDialog({ meetingId, hasVideo, hasTranscript, onClo
   }
 
   async function handleSaveAs() {
-    const ext = getExtension(tab, getCurrentFormat());
+    if (!selectedType || !selectedFormat) return;
+    const ext = getExtension(selectedType, selectedFormat);
     const filePath = await save({
       filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
     });
@@ -93,104 +101,127 @@ export default function ExportDialog({ meetingId, hasVideo, hasTranscript, onClo
     await doExport({ mode: "save_as", path: filePath });
   }
 
+  function isSelected(type: ExportType, format: string) {
+    return selectedType === type && selectedFormat === format;
+  }
+
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-7 max-w-[500px] w-[90%] max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-5">
-          <h2 className="text-xl font-semibold">Exportar</h2>
-          <button className="bg-transparent border-none text-zinc-500 text-2xl cursor-pointer p-1 leading-none transition-colors duration-150 hover:text-zinc-100" onClick={onClose}>&times;</button>
-        </div>
-
-        <div className="flex gap-1 mb-5">
-          <button
-            className={`border border-zinc-700 px-5 py-2 text-sm cursor-pointer rounded-lg transition-all duration-150 ${tab === "audio" ? "bg-rose-500 border-rose-500 text-white" : "bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-100"}`}
-            onClick={() => setTab("audio")}
-          >
-            Audio
+    <>
+      {/* Header */}
+      <header className="glass shrink-0 border-b border-white/5">
+        <div className="px-5 h-12 flex items-center gap-3">
+          <button onClick={onBack} className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
+            </svg>
           </button>
-          {hasVideo && (
-            <button
-              className={`border border-zinc-700 px-5 py-2 text-sm cursor-pointer rounded-lg transition-all duration-150 ${tab === "video" ? "bg-rose-500 border-rose-500 text-white" : "bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-100"}`}
-              onClick={() => setTab("video")}
-            >
-              Video
-            </button>
-          )}
-          {hasTranscript && (
-            <button
-              className={`border border-zinc-700 px-5 py-2 text-sm cursor-pointer rounded-lg transition-all duration-150 ${tab === "transcript" ? "bg-rose-500 border-rose-500 text-white" : "bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-100"}`}
-              onClick={() => setTab("transcript")}
-            >
-              Transcricao
-            </button>
-          )}
+          <h1 className="text-sm font-semibold text-white/80">Exportar</h1>
+          <span className="text-[10px] text-white/20">{meetingTitle}</span>
+        </div>
+      </header>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-5 space-y-5">
+        {/* Audio section */}
+        <div className="glass-card rounded-2xl p-5 stagger">
+          <div className="flex items-center gap-2.5 mb-4">
+            <svg className="w-4 h-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" />
+            </svg>
+            <h2 className="text-[12px] font-semibold text-white/60 uppercase tracking-wider">Audio</h2>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {AUDIO_FORMATS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => selectFormat("audio", f.value)}
+                className={`glass-input rounded-xl py-2.5 text-[11px] font-medium transition-all active:scale-95 cursor-pointer bg-transparent ${
+                  isSelected("audio", f.value)
+                    ? "border-brand-500/40 bg-brand-500/10 text-brand-400"
+                    : "text-white/50 hover:text-white/80 hover:border-brand-500/30 hover:bg-brand-500/5"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="mb-5">
-          {tab === "audio" && (
-            <div className="flex flex-col gap-2">
-              {AUDIO_FORMATS.map((f) => (
-                <label key={f.value} className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors duration-150 text-sm hover:bg-zinc-800">
-                  <input
-                    type="radio"
-                    name="audio-format"
-                    checked={audioFormat === f.value}
-                    onChange={() => setAudioFormat(f.value)}
-                    className="accent-rose-500"
-                  />
-                  <span>{f.label}</span>
-                </label>
-              ))}
+        {/* Video section */}
+        {hasVideo && (
+          <div className="glass-card rounded-2xl p-5 stagger">
+            <div className="flex items-center gap-2.5 mb-4">
+              <svg className="w-4 h-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              <h2 className="text-[12px] font-semibold text-white/60 uppercase tracking-wider">Video</h2>
             </div>
-          )}
-
-          {tab === "video" && (
-            <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {VIDEO_FORMATS.map((f) => (
-                <label key={f.value} className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors duration-150 text-sm hover:bg-zinc-800">
-                  <input
-                    type="radio"
-                    name="video-format"
-                    checked={videoFormat === f.value}
-                    onChange={() => setVideoFormat(f.value)}
-                    className="accent-rose-500"
-                  />
-                  <span>{f.label}</span>
-                </label>
+                <button
+                  key={f.value}
+                  onClick={() => selectFormat("video", f.value)}
+                  className={`glass-input rounded-xl py-2.5 text-[11px] font-medium transition-all active:scale-95 cursor-pointer bg-transparent ${
+                    isSelected("video", f.value)
+                      ? "border-brand-500/40 bg-brand-500/10 text-brand-400"
+                      : "text-white/50 hover:text-white/80 hover:border-brand-500/30 hover:bg-brand-500/5"
+                  }`}
+                >
+                  {f.label}
+                </button>
               ))}
             </div>
-          )}
+          </div>
+        )}
 
-          {tab === "transcript" && (
-            <div className="flex flex-col gap-2">
+        {/* Transcript section */}
+        {hasTranscript && (
+          <div className="glass-card rounded-2xl p-5 stagger">
+            <div className="flex items-center gap-2.5 mb-4">
+              <svg className="w-4 h-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <h2 className="text-[12px] font-semibold text-white/60 uppercase tracking-wider">Transcricao</h2>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
               {TRANSCRIPT_FORMATS.map((f) => (
-                <label key={f.value} className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors duration-150 text-sm hover:bg-zinc-800">
-                  <input
-                    type="radio"
-                    name="transcript-format"
-                    checked={transcriptFormat === f.value}
-                    onChange={() => setTranscriptFormat(f.value)}
-                    className="accent-rose-500"
-                  />
-                  <span>{f.label}</span>
-                </label>
+                <button
+                  key={f.value}
+                  onClick={() => selectFormat("transcript", f.value)}
+                  className={`glass-input rounded-xl py-2.5 text-[11px] font-medium transition-all active:scale-95 cursor-pointer bg-transparent ${
+                    isSelected("transcript", f.value)
+                      ? "border-brand-500/40 bg-brand-500/10 text-brand-400"
+                      : "text-white/50 hover:text-white/80 hover:border-brand-500/30 hover:bg-brand-500/5"
+                  }`}
+                >
+                  {f.label}
+                </button>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        <div className="flex gap-3">
-          <button className="bg-rose-500 text-white border-none px-6 py-2.5 rounded-lg text-sm cursor-pointer transition-colors duration-150 font-medium hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed" onClick={handleSave} disabled={exporting}>
-            {exporting ? "Exportando..." : "Salvar"}
-          </button>
-          <button className="bg-transparent text-zinc-100 border border-zinc-700 px-6 py-2.5 rounded-lg text-sm cursor-pointer transition-colors duration-150 hover:border-zinc-500 hover:bg-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed" onClick={handleSaveAs} disabled={exporting}>
-            Salvar como...
-          </button>
-        </div>
-
-        {result && <p className="mt-4 text-sm text-green-500 break-all">Salvo em: {result}</p>}
-        {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+        {result && <p className="text-emerald-400 text-[11px] break-all">Salvo em: {result}</p>}
+        {error && <p className="text-red-500 text-[11px]">{error}</p>}
       </div>
-    </div>
+
+      {/* Save buttons */}
+      <div className="p-5 border-t border-white/5 shrink-0 flex gap-3">
+        <button
+          onClick={handleSave}
+          disabled={exporting || !selectedFormat}
+          className="flex-1 py-3 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-xl text-[12px] font-medium transition-all active:scale-[0.98] glow-sm hover:shadow-lg hover:shadow-brand-500/20 border-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {exporting ? "Exportando..." : "Salvar"}
+        </button>
+        <button
+          onClick={handleSaveAs}
+          disabled={exporting || !selectedFormat}
+          className="flex-1 py-3 glass-heavy rounded-xl text-[12px] text-white/50 font-medium hover:text-white/80 transition-all active:scale-[0.98] border-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Salvar como...
+        </button>
+      </div>
+    </>
   );
 }
