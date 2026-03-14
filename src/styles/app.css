@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* Force dark background — Tailwind v4 may not apply bg-black correctly */
+html, body, #root {
+  background: #000 !important;
+  color: #fff;
+  min-height: 100vh;
+  margin: 0;
+}
+
 @theme {
   --color-brand-400: #fb7185;
   --color-brand-500: #f43f5e;
