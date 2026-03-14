@@ -21,12 +21,17 @@ pub fn generate_video_thumbnail(video_path: &Path, output_path: &Path) -> Result
 /// Generate an audio waveform thumbnail using FFmpeg's showwavespic filter.
 /// Produces a 320x80 image with the brand red color.
 pub fn generate_audio_waveform(audio_path: &Path, output_path: &Path) -> Result<(), String> {
+    // Use audio.ogg if it exists (cleaner headers), otherwise fall back to MKV
+    let ogg_path = audio_path.with_file_name("audio.ogg");
+    let input = if ogg_path.exists() { &ogg_path } else { audio_path };
+
     let output = Command::new("ffmpeg")
         .args(["-y", "-loglevel", "error"])
-        .arg("-i").arg(audio_path)
+        .arg("-i").arg(input)
         .args([
             "-filter_complex",
-            "showwavespic=s=320x80:colors=#f43f5e|#f43f5e50",
+            "showwavespic=s=320x80:colors=0xf43f5e",
+            "-update", "1",
             "-frames:v", "1",
         ])
         .arg(output_path)
