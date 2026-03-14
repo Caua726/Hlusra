@@ -43,12 +43,7 @@ function App() {
         <div className="home">
           <h1>Hlusra</h1>
           <RecordButton onRecordingDone={() => setView({ kind: "gallery" })} />
-          <button
-            className="btn-secondary"
-            onClick={() => setView({ kind: "gallery" })}
-          >
-            Galeria
-          </button>
+          <Gallery onSelectMeeting={(id) => setView({ kind: "meeting", id })} />
         </div>
       )}
 

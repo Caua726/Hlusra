@@ -1,17 +1,9 @@
 import { MeetingSummary } from "../lib/api";
+import { formatDuration } from "../lib/format";
 
 interface Props {
   meeting: MeetingSummary;
   onClick: (id: string) => void;
-}
-
-function formatDuration(secs: number): string {
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const s = Math.floor(secs % 60);
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
 }
 
 function formatSize(bytes: number): string {
@@ -36,6 +28,9 @@ export default function MeetingCard({ meeting, onClick }: Props) {
       <div className="meeting-status">
         <span className={`status-badge ${meeting.transcription_status}`}>
           {meeting.transcription_status}
+        </span>
+        <span className={`status-badge ${meeting.chat_status}`}>
+          {meeting.chat_status}
         </span>
       </div>
     </div>

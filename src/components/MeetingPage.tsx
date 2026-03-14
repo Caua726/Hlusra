@@ -8,6 +8,7 @@ import {
   reindexMeeting,
 } from "../lib/api";
 import type { MeetingDetail } from "../lib/api";
+import { formatDuration } from "../lib/format";
 import TranscriptView from "./TranscriptView";
 import ChatPanel from "./ChatPanel";
 import ExportDialog from "./ExportDialog";
@@ -15,15 +16,6 @@ import ExportDialog from "./ExportDialog";
 interface Props {
   meetingId: string;
   onBack: () => void;
-}
-
-function formatDuration(secs: number): string {
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const s = Math.floor(secs % 60);
-  if (h > 0) return `${h}h ${m}m ${s}s`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
 }
 
 function formatDate(iso: string): string {
@@ -102,11 +94,16 @@ export default function MeetingPage({ meetingId, onBack }: Props) {
     }
   }
 
-  async function handleDelete() {
+  async function handleDelete(mode: "everything" | "media_only") {
     setActionError(null);
     try {
-      await deleteMeeting(meetingId, "everything");
-      onBack();
+      await deleteMeeting(meetingId, mode);
+      if (mode === "everything") {
+        onBack();
+      } else {
+        await loadMeeting();
+        setShowDeleteConfirm(false);
+      }
     } catch (e) {
       setActionError(String(e));
     }
@@ -246,10 +243,13 @@ export default function MeetingPage({ meetingId, onBack }: Props) {
         <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
           <div className="modal-content modal-small" onClick={(e) => e.stopPropagation()}>
             <h3>Confirmar exclusão</h3>
-            <p>Tem certeza que deseja excluir esta reunião? Esta ação não pode ser desfeita.</p>
+            <p>O que deseja excluir?</p>
             <div className="modal-actions">
-              <button className="btn-danger" onClick={handleDelete}>
-                Excluir
+              <button className="btn-danger" onClick={() => handleDelete("everything")}>
+                Apagar tudo
+              </button>
+              <button className="btn-secondary" onClick={() => handleDelete("media_only")}>
+                Apagar só mídia
               </button>
               <button className="btn-secondary" onClick={() => setShowDeleteConfirm(false)}>
                 Cancelar

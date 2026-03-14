@@ -1,15 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { startRecording, stopRecording, getRecordingStatus } from "../lib/api";
+import { formatTimer } from "../lib/format";
 
 interface Props {
   onRecordingDone: () => void;
-}
-
-function formatTimer(secs: number): string {
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const s = Math.floor(secs % 60);
-  return [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
 }
 
 export default function RecordButton({ onRecordingDone }: Props) {

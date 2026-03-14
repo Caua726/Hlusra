@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { transcribeMeeting } from "../lib/api";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { transcribeMeeting, getTranscriptionStatus } from "../lib/api";
 import type { TranscriptResult } from "../lib/api";
 
 interface Props {
@@ -25,16 +25,40 @@ export default function TranscriptView({
 }: Props) {
   const [transcribing, setTranscribing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const clearPoll = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return clearPoll;
+  }, [clearPoll]);
 
   async function handleTranscribe() {
     setError(null);
     setTranscribing(true);
     try {
       await transcribeMeeting(meetingId);
-      onStatusChange();
+
+      // Poll for completion every 2 seconds
+      pollRef.current = setInterval(async () => {
+        try {
+          const status = await getTranscriptionStatus(meetingId);
+          if (status === "done" || status === "failed") {
+            clearPoll();
+            setTranscribing(false);
+            onStatusChange();
+          }
+        } catch {
+          // polling error is non-fatal
+        }
+      }, 2000);
     } catch (e) {
       setError(String(e));
-    } finally {
       setTranscribing(false);
     }
   }

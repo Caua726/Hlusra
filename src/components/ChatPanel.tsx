@@ -72,40 +72,35 @@ export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Pro
       { role: "assistant", content: "" },
     ]);
 
-    // Set up stream listeners before sending the message
+    // Await all listeners BEFORE calling chatMessage to avoid race conditions
     const unlistenChunk = await listen<string>("chat-stream-chunk", (event) => {
       streamBufferRef.current += event.payload;
       appendToLastAssistant(event.payload);
     });
 
-    const chunkDonePromise = new Promise<void>((resolve) => {
-      let unlistenDone: (() => void) | null = null;
-      let unlistenError: (() => void) | null = null;
+    let resolveDone: () => void;
+    const streamFinished = new Promise<void>((resolve) => {
+      resolveDone = resolve;
+    });
 
-      const cleanup = () => {
-        unlistenDone?.();
-        unlistenError?.();
-      };
+    const unlistenDone = await listen<void>("chat-stream-done", () => {
+      resolveDone();
+    });
 
-      listen<void>("chat-stream-done", () => {
-        cleanup();
-        resolve();
-      }).then((fn) => { unlistenDone = fn; });
-
-      listen<string>("chat-stream-error", (event) => {
-        cleanup();
-        setError(event.payload);
-        resolve();
-      }).then((fn) => { unlistenError = fn; });
+    const unlistenError = await listen<string>("chat-stream-error", (event) => {
+      setError(event.payload);
+      resolveDone();
     });
 
     try {
       await chatMessage(meetingId, msg);
-      await chunkDonePromise;
+      await streamFinished;
     } catch (e) {
       setError(String(e));
     } finally {
       unlistenChunk();
+      unlistenDone();
+      unlistenError();
       setSending(false);
     }
   }
@@ -123,11 +118,11 @@ export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Pro
         <h3>Chat</h3>
         <div className="chat-index-prompt">
           {currentStatus === "failed" && (
-            <p className="error-text">A indexação falhou.</p>
+            <p className="error-text">A indexacao falhou.</p>
           )}
-          <p>A reunião precisa ser indexada antes de usar o chat.</p>
+          <p>A reuniao precisa ser indexada antes de usar o chat.</p>
           <button className="btn-primary" onClick={handleIndex} disabled={indexing}>
-            {indexing ? "Indexando..." : "Indexar reunião"}
+            {indexing ? "Indexando..." : "Indexar reuniao"}
           </button>
           {error && <p className="error-text">{error}</p>}
         </div>
@@ -141,7 +136,7 @@ export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Pro
         <h3>Chat</h3>
         <div className="chat-index-prompt">
           <div className="spinner" />
-          <p>Indexando reunião...</p>
+          <p>Indexando reuniao...</p>
         </div>
       </div>
     );
@@ -152,7 +147,7 @@ export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Pro
       <h3>Chat</h3>
       <div className="chat-messages">
         {messages.length === 0 && (
-          <p className="chat-empty">Faça uma pergunta sobre esta reunião.</p>
+          <p className="chat-empty">Faca uma pergunta sobre esta reuniao.</p>
         )}
         {messages.map((msg, i) => (
           <div key={i} className={`chat-bubble chat-${msg.role}`}>
