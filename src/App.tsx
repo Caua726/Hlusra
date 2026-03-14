@@ -117,6 +117,7 @@ function App() {
               onRecordingStart={() => {}}
               onRecordingDone={() => { galleryKey.current++; go("gallery"); }}
               onCancel={() => go("home")}
+              startImmediately
             />
           </div>
         );

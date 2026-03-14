@@ -7,10 +7,11 @@ interface Props {
   onRecordingDone: () => void;
   onCancel?: () => void;
   isRecordingView?: boolean;
+  startImmediately?: boolean;
 }
 
-export default function RecordButton({ onRecordingStart, onRecordingDone, onCancel, isRecordingView }: Props) {
-  const [recording, setRecording] = useState(false);
+export default function RecordButton({ onRecordingStart, onRecordingDone, onCancel, isRecordingView, startImmediately }: Props) {
+  const [recording, setRecording] = useState(!!startImmediately);
   const [withVideo, setWithVideo] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [fileSize, setFileSize] = useState(0);
@@ -34,6 +35,24 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, onCanc
       clearPoll();
     };
   }, [clearPoll]);
+
+  // If startImmediately, begin polling right away (recording already started by home view)
+  useEffect(() => {
+    if (startImmediately && !pollRef.current) {
+      pollRef.current = setInterval(async () => {
+        try {
+          const status = await getRecordingStatus();
+          if (!mountedRef.current) return;
+          if (status.state === "recording") {
+            setElapsed(status.duration_secs);
+            setFileSize(status.file_size);
+          }
+        } catch {
+          // polling error is non-fatal
+        }
+      }, 1000);
+    }
+  }, [startImmediately]);
 
   // Listen for global keyboard shortcut events from App
   useEffect(() => {
