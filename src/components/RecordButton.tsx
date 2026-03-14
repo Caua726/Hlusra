@@ -35,6 +35,23 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, onCanc
     };
   }, [clearPoll]);
 
+  // Listen for global keyboard shortcut events from App
+  useEffect(() => {
+    function onStart() {
+      if (!recording && !starting) handleStart();
+    }
+    function onStop() {
+      if (recording && !stopping) handleStop();
+    }
+
+    window.addEventListener("hlusra:start-recording", onStart);
+    window.addEventListener("hlusra:stop-recording", onStop);
+    return () => {
+      window.removeEventListener("hlusra:start-recording", onStart);
+      window.removeEventListener("hlusra:stop-recording", onStop);
+    };
+  });
+
   async function handleStart() {
     setError(null);
     setStarting(true);

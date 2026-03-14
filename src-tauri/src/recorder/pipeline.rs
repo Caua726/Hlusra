@@ -203,8 +203,8 @@ impl RecordingPipeline {
         if let Some(bus) = self.pipeline.bus() {
             let _ = bus.add_watch(|_bus, msg| {
                 if let gst::MessageView::Error(e) = msg.view() {
-                    eprintln!(
-                        "[hlusra-pipeline] GStreamer error: {} (debug: {})",
+                    tracing::error!(
+                        "GStreamer error: {} (debug: {})",
                         e.error(),
                         e.debug().unwrap_or_default()
                     );

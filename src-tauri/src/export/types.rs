@@ -104,7 +104,7 @@ impl TranscriptFormat {
 
 /// Controls where the exported file is saved.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", tag = "mode")]
+#[serde(rename_all = "snake_case", tag = "mode", deny_unknown_fields)]
 pub enum SaveMode {
     /// Save directly into the meeting directory.
     Save,

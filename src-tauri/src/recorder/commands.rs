@@ -30,13 +30,13 @@ pub async fn start_recording(
     library: State<'_, Library>,
     recorder: State<'_, RecorderState>,
 ) -> Result<String, String> {
-    eprintln!("[recorder] start_recording called, with_video={}", with_video);
+    tracing::info!("start_recording called, with_video={}", with_video);
 
     let prepared = library.prepare_meeting().map_err(|e| {
-        eprintln!("[recorder] prepare_meeting failed: {}", e);
+        tracing::error!("prepare_meeting failed: {}", e);
         format!("Falha ao preparar reunião: {}", e)
     })?;
-    eprintln!("[recorder] meeting prepared: id={}, dir={:?}", prepared.id, prepared.dir_path);
+    tracing::info!("meeting prepared: id={}, dir={:?}", prepared.id, prepared.dir_path);
 
     let output_path = prepared.dir_path.join("recording.mkv");
 
@@ -74,42 +74,42 @@ pub async fn start_recording(
 
     let cancel_prepared = |lib: &Library, id: &str| {
         if let Err(e) = lib.cancel_prepared(id) {
-            eprintln!("[recorder] cancel_prepared failed (orphan directory may remain): {}", e);
+            tracing::error!("cancel_prepared failed (orphan directory may remain): {}", e);
         }
     };
 
     let mut pipeline = if with_video {
-        eprintln!("[recorder] building video pipeline, requesting screen...");
+        tracing::info!("building video pipeline, requesting screen...");
         let mut capture = ScreenCapture::new();
         let source = capture.request_screen().await.map_err(|e| {
-            eprintln!("[recorder] screen capture failed: {}", e);
+            tracing::error!("screen capture failed: {}", e);
             cancel_prepared(&library, &prepared.id);
             format!("Falha na captura de tela: {}", e)
         })?;
-        eprintln!("[recorder] screen captured: node_id={}", source.node_id);
+        tracing::info!("screen captured: node_id={}", source.node_id);
         let p = RecordingPipeline::build_with_video(output_path, &source, &video_config, &audio_config).map_err(|e| {
-            eprintln!("[recorder] build_with_video failed: {}", e);
+            tracing::error!("build_with_video failed: {}", e);
             cancel_prepared(&library, &prepared.id);
             format!("Falha ao montar pipeline de vídeo: {}", e)
         })?;
         *recorder.capture.lock().map_err(|_| "Recorder lock poisoned".to_string())? = Some(capture);
         p
     } else {
-        eprintln!("[recorder] building audio-only pipeline...");
+        tracing::info!("building audio-only pipeline...");
         RecordingPipeline::build_audio_only(output_path, &audio_config).map_err(|e| {
-            eprintln!("[recorder] build_audio_only failed: {}", e);
+            tracing::error!("build_audio_only failed: {}", e);
             cancel_prepared(&library, &prepared.id);
             format!("Falha ao montar pipeline de áudio: {}", e)
         })?
     };
 
-    eprintln!("[recorder] pipeline built, starting...");
+    tracing::info!("pipeline built, starting...");
     pipeline.start().map_err(|e| {
-        eprintln!("[recorder] pipeline.start() failed: {}", e);
+        tracing::error!("pipeline.start() failed: {}", e);
         cancel_prepared(&library, &prepared.id);
         format!("Falha ao iniciar gravação: {}", e)
     })?;
-    eprintln!("[recorder] pipeline started successfully");
+    tracing::info!("pipeline started successfully");
 
     // Open floating recording widget window
     let _ = tauri::WebviewWindowBuilder::new(
@@ -130,7 +130,7 @@ pub async fn start_recording(
     if let Err(e) = recorder.current_meeting_id.lock().map(|mut guard| {
         *guard = Some(prepared.id.clone());
     }) {
-        eprintln!("[recorder] meeting_id lock failed, rolling back pipeline: {}", e);
+        tracing::error!("meeting_id lock failed, rolling back pipeline: {}", e);
         if let Ok(mut pl) = recorder.pipeline.lock() {
             if let Some(mut stale) = pl.take() {
                 let _ = stale.stop();
@@ -149,7 +149,7 @@ pub async fn stop_recording(
     library: State<'_, Library>,
     recorder: State<'_, RecorderState>,
 ) -> Result<crate::library::types::Meeting, String> {
-    eprintln!("[recorder] stop_recording called");
+    tracing::info!("stop_recording called");
 
     // Close the floating recording widget window
     if let Some(w) = app.get_webview_window("widget") {
@@ -164,11 +164,11 @@ pub async fn stop_recording(
     let duration = pipeline.duration_secs();
     let has_video = pipeline.has_video();
 
-    eprintln!("[recorder] stopping pipeline (sending EOS)...");
+    tracing::info!("stopping pipeline (sending EOS)...");
     let pipeline = tokio::task::spawn_blocking(move || -> Result<RecordingPipeline, String> {
         let mut pipeline = pipeline;
         pipeline.stop().map_err(|e| {
-            eprintln!("[recorder] pipeline.stop() failed: {}", e);
+            tracing::error!("pipeline.stop() failed: {}", e);
             format!("Falha ao parar gravação: {}", e)
         })?;
         Ok(pipeline)
@@ -178,7 +178,7 @@ pub async fn stop_recording(
     ?;
 
     let file_size = pipeline.file_size();
-    eprintln!("[recorder] pipeline stopped, duration={}s, size={}bytes", duration, file_size);
+    tracing::info!("pipeline stopped, duration={}s, size={}bytes", duration, file_size);
 
     // Release screen capture fd
     *recorder.capture.lock().map_err(|_| "Recorder lock poisoned".to_string())? = None;
@@ -207,13 +207,13 @@ pub async fn stop_recording(
     };
 
     // Library tracks dir_path internally from prepare_meeting
-    eprintln!("[recorder] finalizing meeting {}...", meeting_id);
+    tracing::info!("finalizing meeting {}...", meeting_id);
     let meeting = library.finalize_meeting(&meeting_id, info)
         .map_err(|e| {
-            eprintln!("[recorder] finalize_meeting failed: {}", e);
+            tracing::error!("finalize_meeting failed: {}", e);
             format!("Falha ao salvar reunião: {}", e)
         })?;
-    eprintln!("[recorder] meeting finalized: {:?}", meeting.id);
+    tracing::info!("meeting finalized: {:?}", meeting.id);
 
     Ok(meeting)
 }

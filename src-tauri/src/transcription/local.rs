@@ -1,6 +1,13 @@
 use std::path::Path;
+use std::sync::{LazyLock, Mutex};
 
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+
+/// Caches a `WhisperContext` alongside the model path it was loaded from.
+/// Re-creating the context on every call is expensive (~seconds of I/O + model
+/// init), so we keep it around for as long as the same model is in use.
+static WHISPER_CACHE: LazyLock<Mutex<Option<(String, WhisperContext)>>> =
+    LazyLock::new(|| Mutex::new(None));
 
 use crate::transcription::models::models_dir;
 use crate::transcription::provider::TranscriptionProvider;
@@ -68,16 +75,38 @@ impl TranscriptionProvider for LocalProvider {
         // Load audio samples from the WAV file.
         let samples = Self::load_wav_samples(audio_path)?;
 
-        // Create whisper context from the model file.
-        let ctx = WhisperContext::new_with_params(
-            model_path.to_str().ok_or("Invalid model path encoding")?,
-            WhisperContextParameters::default(),
-        )
-        .map_err(|e| format!("Failed to load whisper model: {e}"))?;
+        let model_path_str = model_path
+            .to_str()
+            .ok_or("Invalid model path encoding")?
+            .to_string();
 
-        let mut state = ctx
-            .create_state()
-            .map_err(|e| format!("Failed to create whisper state: {e}"))?;
+        // Acquire the cache, loading a new context only when the model path changed.
+        // WhisperState internally holds an Arc to the context, so we can release
+        // the lock right after creating the state.
+        let mut state = {
+            let mut cache = WHISPER_CACHE
+                .lock()
+                .map_err(|e| format!("Whisper cache lock poisoned: {e}"))?;
+
+            if cache
+                .as_ref()
+                .map_or(true, |(cached_path, _)| *cached_path != model_path_str)
+            {
+                let new_ctx = WhisperContext::new_with_params(
+                    &model_path_str,
+                    WhisperContextParameters::default(),
+                )
+                .map_err(|e| format!("Failed to load whisper model: {e}"))?;
+                *cache = Some((model_path_str, new_ctx));
+            }
+
+            cache
+                .as_ref()
+                .unwrap()
+                .1
+                .create_state()
+                .map_err(|e| format!("Failed to create whisper state: {e}"))?
+        };
 
         // Configure inference parameters.
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });

@@ -34,6 +34,32 @@ function App() {
     setView(v);
   }, []);
 
+  // Global keyboard shortcuts
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      // Ctrl+R → start recording (only from home view)
+      if (e.ctrlKey && e.key === "r") {
+        e.preventDefault();
+        if (view === "home") {
+          window.dispatchEvent(new CustomEvent("hlusra:start-recording"));
+        }
+        return;
+      }
+
+      // Escape → stop recording (only while recording)
+      if (e.key === "Escape") {
+        e.preventDefault();
+        if (view === "recording") {
+          window.dispatchEvent(new CustomEvent("hlusra:stop-recording"));
+        }
+        return;
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [view]);
+
   // Resize window
   useEffect(() => {
     (async () => {

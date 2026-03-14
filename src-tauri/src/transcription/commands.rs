@@ -167,13 +167,22 @@ pub fn get_downloaded_models() -> Result<Vec<WhisperModel>, String> {
 }
 
 /// Downloads a model by name (e.g. "tiny", "base", "small", "medium", "large").
+///
+/// Emits `model-download-progress` events during the download and supports
+/// cancellation via `cancel_download`.
 #[tauri::command]
-pub async fn download_model(model: String) -> Result<(), String> {
+pub async fn download_model(app: tauri::AppHandle, model: String) -> Result<(), String> {
     // Run the (potentially slow) download on a blocking thread so we don't
     // block the Tauri async runtime.
-    tokio::task::spawn_blocking(move || models::download_model(&model))
+    tokio::task::spawn_blocking(move || models::download_model(&model, &app))
         .await
         .map_err(|e| format!("Download task panicked: {e}"))?
+}
+
+/// Cancels an in-progress model download.
+#[tauri::command]
+pub fn cancel_download() {
+    models::cancel_download();
 }
 
 /// Returns the currently active Whisper model.

@@ -77,27 +77,29 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
     loadMeeting();
   }, [loadMeeting]);
 
-  // Load media file as blob URL
+  // Build media URL via convertFileSrc
+  // For video meetings: use recording.mkv (WebKitGTK handles it via GStreamer)
+  // For audio-only meetings: use preview.ogg (OGG/Opus is universally supported by browsers)
   useEffect(() => {
-    let revoked = false;
-    let url: string | null = null;
+    let cancelled = false;
 
-    async function loadMedia() {
-      if (!meeting || meeting.media_status !== "present") return;
-      const mediaPath = meeting.dir_path + "/recording.mkv";
-      // Use convertFileSrc for streaming — no file loaded into JS memory
-      const assetUrl = convertFileSrc(mediaPath);
-      if (!revoked) {
-        setMediaBlobUrl(assetUrl);
-      }
+    if (!meeting || meeting.media_status !== "present") {
+      setMediaBlobUrl(null);
+      return;
     }
 
-    loadMedia();
+    const mediaFile = meeting.has_video ? "recording.mkv" : "preview.ogg";
+    const mediaPath = meeting.dir_path + "/" + mediaFile;
+    const assetUrl = convertFileSrc(mediaPath);
+    if (!cancelled) {
+      setMediaBlobUrl(assetUrl);
+    }
+
     return () => {
-      revoked = true;
+      cancelled = true;
       setMediaBlobUrl(null);
     };
-  }, [meeting?.id, meeting?.media_status]);
+  }, [meeting?.id, meeting?.media_status, meeting?.has_video]);
 
   // Escape key handler for delete modal
   useEffect(() => {

@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { open as dialogOpen } from "@tauri-apps/plugin-dialog";
+import { listen } from "@tauri-apps/api/event";
 import {
   getSettings,
   updateSettings,
   probeEncoders,
   listAvailableModels,
   downloadModel,
+  cancelDownload,
   getActiveModel,
   setActiveModel,
 } from "../lib/api";
@@ -43,11 +45,31 @@ export default function SettingsPage({ onBack }: Props) {
   const [models, setModels] = useState<WhisperModel[]>([]);
   const [activeModelName, setActiveModelName] = useState("");
   const [downloadingModel, setDownloadingModel] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<{ downloaded: number; total: number } | null>(null);
 
   useEffect(() => {
     loadAll();
     return () => {
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    };
+  }, []);
+
+  // Listen for model download progress events from the backend.
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    listen<{ model: string; downloaded: number; total: number }>(
+      "model-download-progress",
+      (event) => {
+        setDownloadProgress({
+          downloaded: event.payload.downloaded,
+          total: event.payload.total,
+        });
+      },
+    ).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      if (unlisten) unlisten();
     };
   }, []);
 
@@ -111,14 +133,27 @@ export default function SettingsPage({ onBack }: Props) {
 
   async function handleDownloadModel(name: string) {
     setDownloadingModel(name);
+    setDownloadProgress(null);
     try {
       await downloadModel(name);
       const mods = await listAvailableModels();
       setModels(mods);
     } catch (e) {
-      setError(formatError(e));
+      const msg = formatError(e);
+      if (msg !== "Download cancelled") {
+        setError(msg);
+      }
     } finally {
       setDownloadingModel(null);
+      setDownloadProgress(null);
+    }
+  }
+
+  async function handleCancelDownload() {
+    try {
+      await cancelDownload();
+    } catch (e) {
+      setError(formatError(e));
     }
   }
 
@@ -517,13 +552,41 @@ export default function SettingsPage({ onBack }: Props) {
                               >
                                 {activeModelName === m.name ? "Ativo" : "Usar"}
                               </button>
+                            ) : downloadingModel === m.name ? (
+                              <div className="flex items-center gap-2">
+                                <div className="flex flex-col items-end gap-1 min-w-[100px]">
+                                  <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-brand-500 rounded-full transition-all duration-300"
+                                      style={{
+                                        width: `${
+                                          downloadProgress && downloadProgress.total > 0
+                                            ? Math.min(100, (downloadProgress.downloaded / downloadProgress.total) * 100)
+                                            : 0
+                                        }%`,
+                                      }}
+                                    />
+                                  </div>
+                                  <span className="text-[9px] text-white/30">
+                                    {downloadProgress && downloadProgress.total > 0
+                                      ? `${((downloadProgress.downloaded / downloadProgress.total) * 100).toFixed(0)}%`
+                                      : "0%"}
+                                  </span>
+                                </div>
+                                <button
+                                  className="px-2 py-1 text-[10px] rounded-lg cursor-pointer bg-transparent text-red-400 border border-red-400/30 hover:bg-red-400/10 transition-all"
+                                  onClick={handleCancelDownload}
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
                             ) : (
                               <button
                                 className="px-3 py-1 text-[10px] rounded-lg cursor-pointer bg-brand-500 text-white border-0 hover:bg-brand-600 disabled:opacity-40 disabled:cursor-not-allowed"
                                 onClick={() => handleDownloadModel(m.name)}
                                 disabled={downloadingModel !== null}
                               >
-                                {downloadingModel === m.name ? "Baixando..." : "Baixar"}
+                                Baixar
                               </button>
                             )}
                           </div>

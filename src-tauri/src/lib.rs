@@ -31,8 +31,8 @@ fn get_recordings_dir() -> PathBuf {
             }
         }
         Err(e) => {
-            eprintln!(
-                "WARNING: failed to load settings, using default recordings dir: {}",
+            tracing::warn!(
+                "failed to load settings, using default recordings dir: {}",
                 e
             );
             default_recordings_dir()
@@ -50,6 +50,8 @@ fn get_db_path() -> PathBuf {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    tracing_subscriber::fmt::init();
+
     gstreamer::init().expect("GStreamer init failed");
 
     let library = Library::new(
@@ -102,6 +104,7 @@ pub fn run() {
             transcription::commands::list_available_models,
             transcription::commands::get_downloaded_models,
             transcription::commands::download_model,
+            transcription::commands::cancel_download,
             transcription::commands::get_active_model,
             transcription::commands::set_active_model,
         ])
