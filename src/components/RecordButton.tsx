@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { startRecording, stopRecording, getRecordingStatus } from "../lib/api";
-import { formatTimer } from "../lib/format";
+import { formatTimer, formatError } from "../lib/format";
 
 interface Props {
   onRecordingDone: () => void;
@@ -45,7 +45,7 @@ export default function RecordButton({ onRecordingDone }: Props) {
         }
       }, 1000);
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
     } finally {
       setStarting(false);
     }
@@ -61,7 +61,7 @@ export default function RecordButton({ onRecordingDone }: Props) {
       setElapsed(0);
       onRecordingDone();
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
     } finally {
       setStopping(false);
     }

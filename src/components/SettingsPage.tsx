@@ -9,6 +9,7 @@ import {
   setActiveModel,
 } from "../lib/api";
 import type { AppSettings, WhisperModel } from "../lib/api";
+import { formatError } from "../lib/format";
 
 interface Props {
   onBack: () => void;
@@ -46,7 +47,7 @@ export default function SettingsPage({ onBack }: Props) {
       setModels(mods);
       setActiveModelName(active.name);
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
     } finally {
       setLoading(false);
     }
@@ -67,7 +68,7 @@ export default function SettingsPage({ onBack }: Props) {
       await updateSettings(settings);
       setSaved(true);
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
     } finally {
       setSaving(false);
     }
@@ -80,7 +81,7 @@ export default function SettingsPage({ onBack }: Props) {
       const mods = await listAvailableModels();
       setModels(mods);
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
     } finally {
       setDownloadingModel(null);
     }
@@ -91,7 +92,7 @@ export default function SettingsPage({ onBack }: Props) {
       await setActiveModel(name);
       setActiveModelName(name);
     } catch (e) {
-      setError(String(e));
+      setError(formatError(e));
     }
   }
 

@@ -28,24 +28,46 @@ pub async fn start_recording(
     library: State<'_, Library>,
     recorder: State<'_, RecorderState>,
 ) -> Result<String, String> {
-    let prepared = library.prepare_meeting().map_err(|e| e.to_string())?;
-    let output_path = prepared.dir_path.join("recording.mkv");
+    eprintln!("[recorder] start_recording called, with_video={}", with_video);
 
+    let prepared = library.prepare_meeting().map_err(|e| {
+        eprintln!("[recorder] prepare_meeting failed: {}", e);
+        format!("Falha ao preparar reunião: {}", e)
+    })?;
+    eprintln!("[recorder] meeting prepared: id={}, dir={:?}", prepared.id, prepared.dir_path);
+
+    let output_path = prepared.dir_path.join("recording.mkv");
     let video_config = VideoConfig::default();
     let audio_config = AudioConfig::default();
 
     let mut pipeline = if with_video {
+        eprintln!("[recorder] building video pipeline, requesting screen...");
         let mut capture = ScreenCapture::new();
-        let source = capture.request_screen().await?;
-        let p = RecordingPipeline::build_with_video(output_path, &source, &video_config, &audio_config)?;
-        // Store capture in RecorderState so OwnedFd outlives the pipeline
+        let source = capture.request_screen().await.map_err(|e| {
+            eprintln!("[recorder] screen capture failed: {}", e);
+            format!("Falha na captura de tela: {}", e)
+        })?;
+        eprintln!("[recorder] screen captured: node_id={}", source.node_id);
+        let p = RecordingPipeline::build_with_video(output_path, &source, &video_config, &audio_config).map_err(|e| {
+            eprintln!("[recorder] build_with_video failed: {}", e);
+            format!("Falha ao montar pipeline de vídeo: {}", e)
+        })?;
         *recorder.capture.lock().map_err(|_| "Recorder lock poisoned".to_string())? = Some(capture);
         p
     } else {
-        RecordingPipeline::build_audio_only(output_path, &audio_config)?
+        eprintln!("[recorder] building audio-only pipeline...");
+        RecordingPipeline::build_audio_only(output_path, &audio_config).map_err(|e| {
+            eprintln!("[recorder] build_audio_only failed: {}", e);
+            format!("Falha ao montar pipeline de áudio: {}", e)
+        })?
     };
 
-    pipeline.start()?;
+    eprintln!("[recorder] pipeline built, starting...");
+    pipeline.start().map_err(|e| {
+        eprintln!("[recorder] pipeline.start() failed: {}", e);
+        format!("Falha ao iniciar gravação: {}", e)
+    })?;
+    eprintln!("[recorder] pipeline started successfully");
 
     *recorder.pipeline.lock().map_err(|_| "Recorder lock poisoned".to_string())? = Some(pipeline);
     *recorder.current_meeting_id.lock().map_err(|_| "Recorder lock poisoned".to_string())? = Some(prepared.id.clone());
@@ -58,10 +80,16 @@ pub fn stop_recording(
     library: State<'_, Library>,
     recorder: State<'_, RecorderState>,
 ) -> Result<crate::library::types::Meeting, String> {
+    eprintln!("[recorder] stop_recording called");
     let mut pipeline_lock = recorder.pipeline.lock().map_err(|_| "Recorder lock poisoned".to_string())?;
-    let pipeline = pipeline_lock.take().ok_or("No active recording")?;
+    let pipeline = pipeline_lock.take().ok_or("Nenhuma gravação ativa")?;
 
-    pipeline.stop()?;
+    eprintln!("[recorder] stopping pipeline (sending EOS)...");
+    pipeline.stop().map_err(|e| {
+        eprintln!("[recorder] pipeline.stop() failed: {}", e);
+        format!("Falha ao parar gravação: {}", e)
+    })?;
+    eprintln!("[recorder] pipeline stopped, duration={}s, size={}bytes", pipeline.duration_secs(), pipeline.file_size());
 
     // Release screen capture fd
     *recorder.capture.lock().map_err(|_| "Recorder lock poisoned".to_string())? = None;

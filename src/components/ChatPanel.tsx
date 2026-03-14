@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { chatMessage, indexMeeting, getChatStatus } from "../lib/api";
+import { formatError } from "../lib/format";
 
 interface Props {
   meetingId: string;
@@ -64,7 +65,7 @@ export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Pro
       onStatusChange();
     } catch (e) {
       if (!mountedRef.current) return;
-      setError(String(e));
+      setError(formatError(e));
     } finally {
       if (mountedRef.current) setIndexing(false);
     }
@@ -117,7 +118,7 @@ export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Pro
       await chatMessage(meetingId, msg);
       await streamFinished;
     } catch (e) {
-      if (mountedRef.current) setError(String(e));
+      if (mountedRef.current) setError(formatError(e));
     } finally {
       cleanup();
       if (mountedRef.current) setSending(false);
