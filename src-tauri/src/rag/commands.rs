@@ -195,16 +195,22 @@ pub async fn chat_message(
     while let Some(chunk_result) = rx.recv().await {
         match chunk_result {
             Ok(text) => {
-                let _ = app.emit("chat-stream-chunk", &text);
+                if let Err(e) = app.emit("chat-stream-chunk", &text) {
+                    eprintln!("[rag] failed to emit chat-stream-chunk: {e}");
+                }
             }
             Err(e) => {
-                let _ = app.emit("chat-stream-error", e.to_string());
+                if let Err(emit_err) = app.emit("chat-stream-error", e.to_string()) {
+                    eprintln!("[rag] failed to emit chat-stream-error: {emit_err}");
+                }
                 return Err(RagCommandError::Chat(e));
             }
         }
     }
 
-    let _ = app.emit("chat-stream-done", ());
+    if let Err(e) = app.emit("chat-stream-done", ()) {
+        eprintln!("[rag] failed to emit chat-stream-done: {e}");
+    }
     Ok(())
 }
 

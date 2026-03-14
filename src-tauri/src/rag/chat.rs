@@ -111,9 +111,11 @@ impl ChatClient {
             stream: true,
         };
 
+        let url = format!("{}/chat/completions", self.url.trim_end_matches('/'));
+
         let response = self
             .client
-            .post(&self.url)
+            .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .json(&body)
             .send()
@@ -244,9 +246,11 @@ impl ChatClient {
             stream: false,
         };
 
+        let url = format!("{}/chat/completions", self.url.trim_end_matches('/'));
+
         let response = self
             .client
-            .post(&self.url)
+            .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .json(&body)
             .send()

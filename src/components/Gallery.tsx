@@ -84,7 +84,7 @@ export default function Gallery({ onSelectMeeting, onBack, onSettings }: Props) 
           </div>
         ) : error ? (
           <div className="text-center p-8 flex flex-col items-center gap-4" role="alert">
-            <p className="text-red-500 text-sm">{error}</p>
+            <p className="text-red-400/80 text-xs">{error}</p>
             <button
               className="glass-heavy px-4 py-2 text-[11px] rounded-xl text-white/40 hover:text-white/70 transition-all cursor-pointer border-0"
               onClick={loadMeetings}

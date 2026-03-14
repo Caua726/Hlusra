@@ -98,7 +98,7 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, onCanc
     if (isRecordingView && !recording && !starting) {
       return (
         <>
-          {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+          {error && <p className="text-red-400/80 text-xs mb-4">{error}</p>}
           {onCancel && (
             <button
               onClick={onCancel}
@@ -136,7 +136,7 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, onCanc
           {stopping ? "Parando..." : "Parar"}
         </button>
 
-        {error && <p className="text-red-500 text-sm mt-4">{error}</p>}
+        {error && <p className="text-red-400/80 text-xs mt-4">{error}</p>}
       </>
     );
   }

@@ -13,9 +13,56 @@ impl LibraryFs {
         Ok(LibraryFs { base_dir })
     }
 
+    /// Verify that `path` is contained within `self.base_dir`.
+    /// Uses canonical paths to prevent traversal via `..` or symlinks.
+    fn ensure_contained(&self, path: &Path) -> std::io::Result<()> {
+        let canonical = fs::canonicalize(path)?;
+        if !canonical.starts_with(&self.base_dir) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                format!(
+                    "path {} escapes library base directory {}",
+                    canonical.display(),
+                    self.base_dir.display()
+                ),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Verify containment for a path that may not exist yet by checking its
+    /// parent directory.
+    fn ensure_parent_contained(&self, path: &Path) -> std::io::Result<()> {
+        let parent = path.parent().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "path has no parent")
+        })?;
+        let canonical_parent = fs::canonicalize(parent)?;
+        if !canonical_parent.starts_with(&self.base_dir) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                format!(
+                    "path {} escapes library base directory {}",
+                    path.display(),
+                    self.base_dir.display()
+                ),
+            ));
+        }
+        Ok(())
+    }
+
     pub fn create_meeting_dir(&self, dir_name: &str) -> std::io::Result<PathBuf> {
         let path = self.base_dir.join(dir_name);
+        // Validate that the joined path doesn't escape base_dir
+        // (e.g. dir_name = "../../etc").  We check lexically first since
+        // the directory doesn't exist yet, then canonicalize after creation.
+        if dir_name.contains("..") || dir_name.contains('/') || dir_name.contains('\\') {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "meeting directory name must not contain path separators or '..'",
+            ));
+        }
         fs::create_dir_all(&path)?;
+        self.ensure_contained(&path)?;
         Ok(path)
     }
 
@@ -24,6 +71,7 @@ impl LibraryFs {
     }
 
     pub fn save_artifact(&self, meeting_dir: &Path, kind: &ArtifactKind, data: &[u8]) -> std::io::Result<PathBuf> {
+        self.ensure_contained(meeting_dir)?;
         let path = self.get_artifact_path(meeting_dir, kind);
         let tmp_path = path.with_extension("tmp");
         fs::write(&tmp_path, data)?;
@@ -49,6 +97,8 @@ impl LibraryFs {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
             Err(e) => return Err(e),
         }
+        // Path containment check
+        self.ensure_contained(meeting_dir)?;
         match fs::remove_dir_all(meeting_dir) {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -57,6 +107,7 @@ impl LibraryFs {
     }
 
     pub fn delete_media_files(&self, meeting_dir: &Path) -> std::io::Result<()> {
+        self.ensure_contained(meeting_dir)?;
         let recording = self.get_artifact_path(meeting_dir, &ArtifactKind::Recording);
         match fs::remove_file(&recording) {
             Ok(()) => {}
@@ -73,6 +124,7 @@ impl LibraryFs {
     }
 
     pub fn read_artifact(&self, meeting_dir: &Path, kind: &ArtifactKind) -> std::io::Result<Vec<u8>> {
+        self.ensure_contained(meeting_dir)?;
         let path = self.get_artifact_path(meeting_dir, kind);
         fs::read(&path)
     }

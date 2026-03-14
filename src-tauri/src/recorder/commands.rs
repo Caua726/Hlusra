@@ -71,16 +71,24 @@ pub async fn start_recording(
         bitrate: settings.audio.bitrate,
     };
 
+    let cancel_prepared = |lib: &Library, id: &str| {
+        if let Err(e) = lib.cancel_prepared(id) {
+            eprintln!("[recorder] cancel_prepared failed (orphan directory may remain): {}", e);
+        }
+    };
+
     let mut pipeline = if with_video {
         eprintln!("[recorder] building video pipeline, requesting screen...");
         let mut capture = ScreenCapture::new();
         let source = capture.request_screen().await.map_err(|e| {
             eprintln!("[recorder] screen capture failed: {}", e);
+            cancel_prepared(&library, &prepared.id);
             format!("Falha na captura de tela: {}", e)
         })?;
         eprintln!("[recorder] screen captured: node_id={}", source.node_id);
         let p = RecordingPipeline::build_with_video(output_path, &source, &video_config, &audio_config).map_err(|e| {
             eprintln!("[recorder] build_with_video failed: {}", e);
+            cancel_prepared(&library, &prepared.id);
             format!("Falha ao montar pipeline de vídeo: {}", e)
         })?;
         *recorder.capture.lock().map_err(|_| "Recorder lock poisoned".to_string())? = Some(capture);
@@ -89,6 +97,7 @@ pub async fn start_recording(
         eprintln!("[recorder] building audio-only pipeline...");
         RecordingPipeline::build_audio_only(output_path, &audio_config).map_err(|e| {
             eprintln!("[recorder] build_audio_only failed: {}", e);
+            cancel_prepared(&library, &prepared.id);
             format!("Falha ao montar pipeline de áudio: {}", e)
         })?
     };
@@ -96,12 +105,26 @@ pub async fn start_recording(
     eprintln!("[recorder] pipeline built, starting...");
     pipeline.start().map_err(|e| {
         eprintln!("[recorder] pipeline.start() failed: {}", e);
+        cancel_prepared(&library, &prepared.id);
         format!("Falha ao iniciar gravação: {}", e)
     })?;
     eprintln!("[recorder] pipeline started successfully");
 
+    // I23: Lock pipeline first, then meeting_id. If meeting_id lock fails,
+    // take the pipeline back and stop it to avoid inconsistent state.
     *recorder.pipeline.lock().map_err(|_| "Recorder lock poisoned".to_string())? = Some(pipeline);
-    *recorder.current_meeting_id.lock().map_err(|_| "Recorder lock poisoned".to_string())? = Some(prepared.id.clone());
+    if let Err(e) = recorder.current_meeting_id.lock().map(|mut guard| {
+        *guard = Some(prepared.id.clone());
+    }) {
+        eprintln!("[recorder] meeting_id lock failed, rolling back pipeline: {}", e);
+        if let Ok(mut pl) = recorder.pipeline.lock() {
+            if let Some(mut stale) = pl.take() {
+                let _ = stale.stop();
+            }
+        }
+        cancel_prepared(&library, &prepared.id);
+        return Err("Recorder lock poisoned".to_string());
+    }
 
     Ok(prepared.id)
 }

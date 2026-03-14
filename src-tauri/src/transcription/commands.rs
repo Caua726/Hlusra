@@ -126,16 +126,15 @@ pub async fn transcribe_meeting(
     }
 }
 
-/// Re-transcribes a meeting (resets status, then runs transcription again).
+/// Re-transcribes a meeting by running the transcription pipeline again.
+///
+/// Skips the intermediate `Pending` status since `transcribe_meeting` will
+/// immediately set it to `Processing`.
 #[tauri::command]
 pub async fn retranscribe_meeting(
     id: String,
     library: State<'_, Library>,
 ) -> Result<(), String> {
-    library
-        .update_transcription_status(&id, TranscriptionStatus::Pending)
-        .map_err(|e| format!("DB error: {e}"))?;
-
     transcribe_meeting(id, library).await
 }
 

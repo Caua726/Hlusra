@@ -128,7 +128,7 @@ export default function ExportDialog({ meetingId, hasVideo, hasTranscript, meeti
             <svg className="w-4 h-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" />
             </svg>
-            <h2 className="text-[12px] font-semibold text-white/60 uppercase tracking-wider">Audio</h2>
+            <h2 className="text-[12px] font-semibold text-white/60 uppercase tracking-wider">Áudio</h2>
           </div>
           <div className="grid grid-cols-4 gap-2">
             {AUDIO_FORMATS.map((f) => (
@@ -154,7 +154,7 @@ export default function ExportDialog({ meetingId, hasVideo, hasTranscript, meeti
               <svg className="w-4 h-4 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
-              <h2 className="text-[12px] font-semibold text-white/60 uppercase tracking-wider">Video</h2>
+              <h2 className="text-[12px] font-semibold text-white/60 uppercase tracking-wider">Vídeo</h2>
             </div>
             <div className="grid grid-cols-4 gap-2">
               {VIDEO_FORMATS.map((f) => (
@@ -202,7 +202,7 @@ export default function ExportDialog({ meetingId, hasVideo, hasTranscript, meeti
         )}
 
         {result && <p className="text-emerald-400 text-[11px] break-all">Salvo em: {result}</p>}
-        {error && <p className="text-red-500 text-[11px]">{error}</p>}
+        {error && <p className="text-red-400/80 text-xs">{error}</p>}
       </div>
 
       {/* Save buttons */}

@@ -39,6 +39,7 @@ pub enum VideoFormat {
     Mp4H265,
     MkvH264,
     MkvH265,
+    MkvAv1,
 }
 
 impl VideoFormat {
@@ -46,7 +47,7 @@ impl VideoFormat {
     pub fn extension(&self) -> &'static str {
         match self {
             Self::Mp4H264 | Self::Mp4H265 => "mp4",
-            Self::MkvH264 | Self::MkvH265 => "mkv",
+            Self::MkvH264 | Self::MkvH265 | Self::MkvAv1 => "mkv",
         }
     }
 
@@ -55,6 +56,7 @@ impl VideoFormat {
         match self {
             Self::Mp4H264 | Self::MkvH264 => "libx264",
             Self::Mp4H265 | Self::MkvH265 => "libx265",
+            Self::MkvAv1 => "libsvtav1",
         }
     }
 
@@ -62,7 +64,7 @@ impl VideoFormat {
     pub fn container_name(&self) -> &'static str {
         match self {
             Self::Mp4H264 | Self::Mp4H265 => "mp4",
-            Self::MkvH264 | Self::MkvH265 => "matroska",
+            Self::MkvH264 | Self::MkvH265 | Self::MkvAv1 => "matroska",
         }
     }
 
@@ -74,7 +76,7 @@ impl VideoFormat {
     /// Whether this format requires transcoding (source codec != target codec).
     /// Source is assumed to be H.265.
     pub fn needs_transcode(&self) -> bool {
-        matches!(self, Self::Mp4H264 | Self::MkvH264)
+        matches!(self, Self::Mp4H264 | Self::MkvH264 | Self::MkvAv1)
     }
 }
 

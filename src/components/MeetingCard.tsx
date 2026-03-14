@@ -72,7 +72,7 @@ export default function MeetingCard({ meeting, onClick }: Props) {
               ? "bg-blue-500/15 text-blue-400"
               : "bg-white/6 text-white/40"
           }`}>
-            {meeting.has_video ? "Video" : "Audio"}
+            {meeting.has_video ? "Vídeo" : "Áudio"}
           </span>
         </div>
 

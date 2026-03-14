@@ -26,7 +26,8 @@ export function formatError(e: unknown): string {
   console.error("[hlusra]", raw);
 
   // Already a friendly message from backend
-  if (raw.startsWith("Falha") || raw.startsWith("Nenhuma") || raw.startsWith("Erro")) {
+  const lower = raw.toLowerCase();
+  if (lower.startsWith("falha") || lower.startsWith("nenhuma") || lower.startsWith("erro")) {
     return raw;
   }
 

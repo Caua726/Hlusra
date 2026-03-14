@@ -114,9 +114,11 @@ impl EmbeddingsClient {
             input: texts.to_vec(),
         };
 
+        let url = format!("{}/embeddings", self.url.trim_end_matches('/'));
+
         let response = self
             .client
-            .post(&self.url)
+            .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .json(&body)
             .send()
