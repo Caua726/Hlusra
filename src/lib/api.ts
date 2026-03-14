@@ -181,7 +181,7 @@ export async function deleteMeeting(id: string, mode: "everything" | "media_only
 // ---------------------------------------------------------------------------
 
 export async function startRecording(withVideo: boolean): Promise<string> {
-  return invoke("start_recording", { with_video: withVideo });
+  return invoke("start_recording", { withVideo });
 }
 
 export async function stopRecording(): Promise<Meeting> {
@@ -245,7 +245,7 @@ export async function reindexMeeting(id: string): Promise<void> {
 }
 
 export async function chatMessage(meetingId: string, message: string): Promise<void> {
-  return invoke("chat_message", { meeting_id: meetingId, message });
+  return invoke("chat_message", { meetingId, message });
 }
 
 export async function getChatStatus(id: string): Promise<string> {
@@ -269,13 +269,13 @@ export async function updateSettings(settings: AppSettings): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function exportAudio(id: string, format: AudioFormat, saveMode: SaveMode): Promise<string> {
-  return invoke("export_audio", { id, format, save_mode: saveMode });
+  return invoke("export_audio", { id, format, saveMode });
 }
 
 export async function exportVideo(id: string, format: VideoFormat, saveMode: SaveMode): Promise<string> {
-  return invoke("export_video", { id, format, save_mode: saveMode });
+  return invoke("export_video", { id, format, saveMode });
 }
 
 export async function exportTranscript(id: string, format: TranscriptFormat, saveMode: SaveMode): Promise<string> {
-  return invoke("export_transcript", { id, format, save_mode: saveMode });
+  return invoke("export_transcript", { id, format, saveMode });
 }
