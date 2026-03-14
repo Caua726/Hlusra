@@ -134,17 +134,17 @@ export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Pro
 
   if (currentStatus === "not_indexed" || currentStatus === "failed") {
     return (
-      <div className="chat-panel">
-        <h3>Chat</h3>
-        <div className="chat-index-prompt">
+      <div className="mb-8">
+        <h3 className="text-lg font-semibold mb-4 pb-2 border-b border-zinc-700">Chat</h3>
+        <div className="flex flex-col items-center gap-3 p-8 text-center text-zinc-500">
           {currentStatus === "failed" && (
-            <p className="error-text">A indexação falhou.</p>
+            <p className="text-red-500 text-sm">A indexacao falhou.</p>
           )}
-          <p>A reunião precisa ser indexada antes de usar o chat.</p>
-          <button className="btn-primary" onClick={handleIndex} disabled={indexing}>
-            {indexing ? "Indexando..." : "Indexar reunião"}
+          <p>A reuniao precisa ser indexada antes de usar o chat.</p>
+          <button className="bg-rose-500 text-white border-none px-6 py-2.5 rounded-lg text-sm cursor-pointer transition-colors duration-150 font-medium hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed" onClick={handleIndex} disabled={indexing}>
+            {indexing ? "Indexando..." : "Indexar reuniao"}
           </button>
-          {error && <p className="error-text">{error}</p>}
+          {error && <p className="text-red-500 text-sm">{error}</p>}
         </div>
       </div>
     );
@@ -152,33 +152,40 @@ export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Pro
 
   if (currentStatus === "indexing" || indexing) {
     return (
-      <div className="chat-panel">
-        <h3>Chat</h3>
-        <div className="chat-index-prompt">
-          <div className="spinner" />
-          <p>Indexando reunião...</p>
+      <div className="mb-8">
+        <h3 className="text-lg font-semibold mb-4 pb-2 border-b border-zinc-700">Chat</h3>
+        <div className="flex flex-col items-center gap-3 p-8 text-center text-zinc-500">
+          <div className="w-6 h-6 border-[3px] border-zinc-700 border-t-rose-500 rounded-full animate-[spin_0.7s_linear_infinite]" />
+          <p>Indexando reuniao...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="chat-panel">
-      <h3>Chat</h3>
-      <div className="chat-messages">
+    <div className="mb-8">
+      <h3 className="text-lg font-semibold mb-4 pb-2 border-b border-zinc-700">Chat</h3>
+      <div className="max-h-[400px] overflow-y-auto py-2 mb-4 flex flex-col gap-3">
         {messages.length === 0 && (
-          <p className="chat-empty">Faça uma pergunta sobre esta reunião.</p>
+          <p className="text-center text-zinc-600 py-8 text-sm">Faca uma pergunta sobre esta reuniao.</p>
         )}
         {messages.map((msg, i) => (
-          <div key={i} className={`chat-bubble chat-${msg.role}`}>
+          <div
+            key={i}
+            className={`max-w-[80%] px-4 py-3 rounded-xl text-sm leading-normal break-words whitespace-pre-wrap ${
+              msg.role === "user"
+                ? "self-end bg-rose-500 text-white rounded-br-sm"
+                : "self-start bg-zinc-800/50 text-zinc-100 border border-zinc-700 rounded-bl-sm"
+            }`}
+          >
             <p>{msg.content || (sending && msg.role === "assistant" ? "..." : "")}</p>
           </div>
         ))}
         <div ref={messagesEndRef} />
       </div>
-      <div className="chat-input-row">
+      <div className="flex gap-2 items-end">
         <textarea
-          className="chat-input"
+          className="flex-1 bg-zinc-800 text-zinc-100 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm font-[inherit] resize-none outline-none transition-colors duration-150 min-h-[40px] focus:border-blue-500"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -187,14 +194,14 @@ export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Pro
           rows={1}
         />
         <button
-          className="btn-primary chat-send"
+          className="bg-rose-500 text-white border-none px-6 py-2.5 rounded-lg text-sm cursor-pointer transition-colors duration-150 font-medium hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
           onClick={handleSend}
           disabled={sending || !input.trim()}
         >
           Enviar
         </button>
       </div>
-      {error && <p className="error-text">{error}</p>}
+      {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
     </div>
   );
 }

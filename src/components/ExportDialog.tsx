@@ -94,48 +94,49 @@ export default function ExportDialog({ meetingId, hasVideo, hasTranscript, onClo
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Exportar</h2>
-          <button className="modal-close" onClick={onClose}>&times;</button>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-7 max-w-[500px] w-[90%] max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-5">
+          <h2 className="text-xl font-semibold">Exportar</h2>
+          <button className="bg-transparent border-none text-zinc-500 text-2xl cursor-pointer p-1 leading-none transition-colors duration-150 hover:text-zinc-100" onClick={onClose}>&times;</button>
         </div>
 
-        <div className="export-tabs">
+        <div className="flex gap-1 mb-5">
           <button
-            className={`export-tab ${tab === "audio" ? "active" : ""}`}
+            className={`border border-zinc-700 px-5 py-2 text-sm cursor-pointer rounded-lg transition-all duration-150 ${tab === "audio" ? "bg-rose-500 border-rose-500 text-white" : "bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-100"}`}
             onClick={() => setTab("audio")}
           >
-            Áudio
+            Audio
           </button>
           {hasVideo && (
             <button
-              className={`export-tab ${tab === "video" ? "active" : ""}`}
+              className={`border border-zinc-700 px-5 py-2 text-sm cursor-pointer rounded-lg transition-all duration-150 ${tab === "video" ? "bg-rose-500 border-rose-500 text-white" : "bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-100"}`}
               onClick={() => setTab("video")}
             >
-              Vídeo
+              Video
             </button>
           )}
           {hasTranscript && (
             <button
-              className={`export-tab ${tab === "transcript" ? "active" : ""}`}
+              className={`border border-zinc-700 px-5 py-2 text-sm cursor-pointer rounded-lg transition-all duration-150 ${tab === "transcript" ? "bg-rose-500 border-rose-500 text-white" : "bg-transparent text-zinc-500 hover:border-zinc-600 hover:text-zinc-100"}`}
               onClick={() => setTab("transcript")}
             >
-              Transcrição
+              Transcricao
             </button>
           )}
         </div>
 
-        <div className="export-options">
+        <div className="mb-5">
           {tab === "audio" && (
-            <div className="format-list">
+            <div className="flex flex-col gap-2">
               {AUDIO_FORMATS.map((f) => (
-                <label key={f.value} className="format-option">
+                <label key={f.value} className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors duration-150 text-sm hover:bg-zinc-800">
                   <input
                     type="radio"
                     name="audio-format"
                     checked={audioFormat === f.value}
                     onChange={() => setAudioFormat(f.value)}
+                    className="accent-rose-500"
                   />
                   <span>{f.label}</span>
                 </label>
@@ -144,14 +145,15 @@ export default function ExportDialog({ meetingId, hasVideo, hasTranscript, onClo
           )}
 
           {tab === "video" && (
-            <div className="format-list">
+            <div className="flex flex-col gap-2">
               {VIDEO_FORMATS.map((f) => (
-                <label key={f.value} className="format-option">
+                <label key={f.value} className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors duration-150 text-sm hover:bg-zinc-800">
                   <input
                     type="radio"
                     name="video-format"
                     checked={videoFormat === f.value}
                     onChange={() => setVideoFormat(f.value)}
+                    className="accent-rose-500"
                   />
                   <span>{f.label}</span>
                 </label>
@@ -160,14 +162,15 @@ export default function ExportDialog({ meetingId, hasVideo, hasTranscript, onClo
           )}
 
           {tab === "transcript" && (
-            <div className="format-list">
+            <div className="flex flex-col gap-2">
               {TRANSCRIPT_FORMATS.map((f) => (
-                <label key={f.value} className="format-option">
+                <label key={f.value} className="flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors duration-150 text-sm hover:bg-zinc-800">
                   <input
                     type="radio"
                     name="transcript-format"
                     checked={transcriptFormat === f.value}
                     onChange={() => setTranscriptFormat(f.value)}
+                    className="accent-rose-500"
                   />
                   <span>{f.label}</span>
                 </label>
@@ -176,17 +179,17 @@ export default function ExportDialog({ meetingId, hasVideo, hasTranscript, onClo
           )}
         </div>
 
-        <div className="export-actions">
-          <button className="btn-primary" onClick={handleSave} disabled={exporting}>
+        <div className="flex gap-3">
+          <button className="bg-rose-500 text-white border-none px-6 py-2.5 rounded-lg text-sm cursor-pointer transition-colors duration-150 font-medium hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed" onClick={handleSave} disabled={exporting}>
             {exporting ? "Exportando..." : "Salvar"}
           </button>
-          <button className="btn-secondary" onClick={handleSaveAs} disabled={exporting}>
+          <button className="bg-transparent text-zinc-100 border border-zinc-700 px-6 py-2.5 rounded-lg text-sm cursor-pointer transition-colors duration-150 hover:border-zinc-500 hover:bg-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed" onClick={handleSaveAs} disabled={exporting}>
             Salvar como...
           </button>
         </div>
 
-        {result && <p className="export-result">Salvo em: {result}</p>}
-        {error && <p className="error-text">{error}</p>}
+        {result && <p className="mt-4 text-sm text-green-500 break-all">Salvo em: {result}</p>}
+        {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
       </div>
     </div>
   );

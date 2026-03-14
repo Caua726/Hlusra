@@ -29,22 +29,25 @@ export default function Gallery({ onSelectMeeting }: Props) {
     loadMeetings();
   }, [loadMeetings]);
 
-  if (loading) return <div className="loading">Carregando...</div>;
+  if (loading) return <div className="text-center p-12 text-zinc-500">Carregando...</div>;
 
   return (
-    <div className="gallery">
-      <h2>Reuniões</h2>
+    <div className="py-2">
+      <h2 className="mb-5 text-2xl font-semibold">Reunioes</h2>
       {error ? (
-        <div className="gallery-error">
-          <p className="error-text">{error}</p>
-          <button className="btn-secondary" onClick={loadMeetings}>
+        <div className="text-center p-8 flex flex-col items-center gap-4">
+          <p className="text-red-500 text-sm">{error}</p>
+          <button
+            className="bg-transparent text-zinc-100 border border-zinc-700 px-6 py-2.5 rounded-lg text-sm cursor-pointer transition-colors duration-150 hover:border-zinc-500 hover:bg-zinc-900"
+            onClick={loadMeetings}
+          >
             Tentar novamente
           </button>
         </div>
       ) : meetings.length === 0 ? (
-        <p className="empty">Nenhuma reunião gravada ainda.</p>
+        <p className="text-center p-12 text-zinc-500">Nenhuma reuniao gravada ainda.</p>
       ) : (
-        <div className="meeting-grid">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
           {meetings.map((m) => (
             <MeetingCard key={m.id} meeting={m} onClick={onSelectMeeting} />
           ))}
