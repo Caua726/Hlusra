@@ -106,7 +106,7 @@ pub enum DeleteMode {
 #[serde(rename_all = "snake_case")]
 pub enum ArtifactKind {
     Recording,
-    AudioPreview,
+    AudioPlayback,
     Thumbnail,
     TranscriptJson,
     TranscriptTxt,
@@ -116,7 +116,7 @@ impl ArtifactKind {
     pub fn filename(&self) -> &'static str {
         match self {
             Self::Recording => "recording.mkv",
-            Self::AudioPreview => "preview.ogg",
+            Self::AudioPlayback => "audio.ogg",
             Self::Thumbnail => "thumbnail.jpg",
             Self::TranscriptJson => "transcript.json",
             Self::TranscriptTxt => "transcript.txt",
@@ -217,7 +217,7 @@ mod tests {
     #[test]
     fn test_artifact_kind_filenames() {
         assert_eq!(ArtifactKind::Recording.filename(), "recording.mkv");
-        assert_eq!(ArtifactKind::AudioPreview.filename(), "preview.ogg");
+        assert_eq!(ArtifactKind::AudioPlayback.filename(), "audio.ogg");
         assert_eq!(ArtifactKind::Thumbnail.filename(), "thumbnail.jpg");
         assert_eq!(ArtifactKind::TranscriptJson.filename(), "transcript.json");
         assert_eq!(ArtifactKind::TranscriptTxt.filename(), "transcript.txt");

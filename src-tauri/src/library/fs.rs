@@ -114,8 +114,8 @@ impl LibraryFs {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) => return Err(e),
         }
-        let audio_preview = self.get_artifact_path(meeting_dir, &ArtifactKind::AudioPreview);
-        match fs::remove_file(&audio_preview) {
+        let audio_playback = self.get_artifact_path(meeting_dir, &ArtifactKind::AudioPlayback);
+        match fs::remove_file(&audio_playback) {
             Ok(()) => {}
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(e) => return Err(e),
