@@ -968,6 +968,38 @@ body {
 
 .settings-field select {
   cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  padding-right: 2rem;
+}
+
+.settings-field select option {
+  background: var(--bg-input);
+  color: var(--text-primary);
+}
+
+/* Export dialog selects */
+.format-list select,
+.export-options select {
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.format-list select option,
+.export-options select option {
+  background: var(--bg-input);
+  color: var(--text-primary);
 }
 
 .settings-row {
