@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Supported audio export formats.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -99,6 +99,17 @@ pub enum SaveMode {
     SaveAs { path: PathBuf },
 }
 
+/// Resolve the final output path based on the save mode.
+///
+/// In `Save` mode the file is placed inside `meeting_dir`.
+/// In `SaveAs` mode the caller-supplied path is used verbatim.
+pub fn resolve_output_path(meeting_dir: &Path, filename: &str, save_mode: &SaveMode) -> PathBuf {
+    match save_mode {
+        SaveMode::Save => meeting_dir.join(filename),
+        SaveMode::SaveAs { path } => path.clone(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,6 +144,23 @@ mod tests {
         assert_eq!(TranscriptFormat::Json.extension(), "json");
         assert_eq!(TranscriptFormat::Srt.extension(), "srt");
         assert_eq!(TranscriptFormat::Pdf.extension(), "pdf");
+    }
+
+    #[test]
+    fn test_resolve_output_save() {
+        let dir = PathBuf::from("/meetings/abc123");
+        let path = resolve_output_path(&dir, "audio.mp3", &SaveMode::Save);
+        assert_eq!(path, PathBuf::from("/meetings/abc123/audio.mp3"));
+    }
+
+    #[test]
+    fn test_resolve_output_save_as() {
+        let dir = PathBuf::from("/meetings/abc123");
+        let save_as = SaveMode::SaveAs {
+            path: PathBuf::from("/home/user/export.wav"),
+        };
+        let path = resolve_output_path(&dir, "audio.wav", &save_as);
+        assert_eq!(path, PathBuf::from("/home/user/export.wav"));
     }
 
     #[test]

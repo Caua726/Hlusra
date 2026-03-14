@@ -3,7 +3,7 @@ use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::types::{SaveMode, TranscriptFormat};
+use super::types::{resolve_output_path, SaveMode, TranscriptFormat};
 use super::ExportError;
 
 /// A segment from the transcript.json file, used for SRT and PDF generation.
@@ -93,38 +93,40 @@ fn export_srt(meeting_dir: &Path, output_path: &Path) -> Result<PathBuf, ExportE
 fn export_pdf(meeting_dir: &Path, output_path: &Path) -> Result<PathBuf, ExportError> {
     let segments = load_segments(meeting_dir)?;
 
-    // Use genpdf's built-in default font
+    // Use genpdf's built-in default font, trying several common system paths.
     let font_family = genpdf::fonts::from_files("", "LiberationSans", None)
-        .unwrap_or_else(|_| {
-            // Fallback: try system font paths common on Linux
+        .or_else(|_| {
             genpdf::fonts::from_files("/usr/share/fonts/TTF", "LiberationSans", None)
-                .or_else(|_| {
-                    genpdf::fonts::from_files(
-                        "/usr/share/fonts/truetype/liberation",
-                        "LiberationSans",
-                        None,
-                    )
-                })
-                .or_else(|_| {
-                    genpdf::fonts::from_files(
-                        "/usr/share/fonts/liberation-sans",
-                        "LiberationSans",
-                        None,
-                    )
-                })
-                .unwrap_or_else(|_| {
-                    // Last resort: try DejaVu which is very common
-                    genpdf::fonts::from_files("/usr/share/fonts/TTF", "DejaVuSans", None)
-                        .or_else(|_| {
-                            genpdf::fonts::from_files(
-                                "/usr/share/fonts/truetype/dejavu",
-                                "DejaVuSans",
-                                None,
-                            )
-                        })
-                        .expect("No suitable font found. Install liberation-fonts or dejavu-fonts.")
-                })
-        });
+        })
+        .or_else(|_| {
+            genpdf::fonts::from_files(
+                "/usr/share/fonts/truetype/liberation",
+                "LiberationSans",
+                None,
+            )
+        })
+        .or_else(|_| {
+            genpdf::fonts::from_files(
+                "/usr/share/fonts/liberation-sans",
+                "LiberationSans",
+                None,
+            )
+        })
+        .or_else(|_| {
+            genpdf::fonts::from_files("/usr/share/fonts/TTF", "DejaVuSans", None)
+        })
+        .or_else(|_| {
+            genpdf::fonts::from_files(
+                "/usr/share/fonts/truetype/dejavu",
+                "DejaVuSans",
+                None,
+            )
+        })
+        .map_err(|_| {
+            ExportError::PdfGeneration(
+                "No suitable font found. Install liberation-fonts or dejavu-fonts.".to_string(),
+            )
+        })?;
 
     let mut doc = genpdf::Document::new(font_family);
     doc.set_title("Meeting Transcript");
@@ -197,14 +199,6 @@ fn format_readable_timestamp(seconds: f64) -> String {
     let hours = total_mins / 60;
 
     format!("{:02}:{:02}:{:02}", hours, mins, secs)
-}
-
-/// Resolve the final output path based on the save mode.
-fn resolve_output_path(meeting_dir: &Path, filename: &str, save_mode: &SaveMode) -> PathBuf {
-    match save_mode {
-        SaveMode::Save => meeting_dir.join(filename),
-        SaveMode::SaveAs { path } => path.clone(),
-    }
 }
 
 #[cfg(test)]

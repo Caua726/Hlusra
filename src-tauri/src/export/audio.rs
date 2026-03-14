@@ -1,14 +1,42 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use super::types::{AudioFormat, SaveMode};
+use super::types::{resolve_output_path, AudioFormat, SaveMode};
 use super::ExportError;
+
+/// Probe the source file with ffprobe and return the number of audio streams.
+fn count_audio_streams(source: &Path) -> Result<usize, ExportError> {
+    let output = Command::new("ffprobe")
+        .arg("-v")
+        .arg("error")
+        .arg("-select_streams")
+        .arg("a")
+        .arg("-show_entries")
+        .arg("stream=index")
+        .arg("-of")
+        .arg("csv=p=0")
+        .arg(source)
+        .output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        return Err(ExportError::FfmpegFailed(format!(
+            "ffprobe failed: {}",
+            stderr
+        )));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let count = stdout.lines().filter(|l| !l.trim().is_empty()).count();
+    Ok(count)
+}
 
 /// Export audio from a meeting's recording.mkv to the specified format.
 ///
 /// For formats that require mixdown (MP3, WAV, OGG), all audio tracks are
-/// mixed into a single mono/stereo stream. Opus can preserve tracks in
-/// supported containers.
+/// mixed into a single stereo stream. If the source has only one audio track,
+/// no mixing filter is applied. Opus can preserve tracks in supported
+/// containers.
 ///
 /// Uses FFmpeg CLI for media processing (MVP approach).
 pub fn export_audio(
@@ -34,11 +62,16 @@ pub fn export_audio(
         .arg(&source);
 
     if format.requires_mixdown() {
-        // Mix all audio tracks into a single stream
-        cmd.arg("-filter_complex")
-            .arg("amix=inputs=1:duration=longest")
-            .arg("-ac")
-            .arg("1");
+        let stream_count = count_audio_streams(&source)?;
+
+        if stream_count >= 2 {
+            // Merge multiple audio tracks into a single stereo stream
+            cmd.arg("-filter_complex")
+                .arg("[0:a]amerge=inputs=2,pan=stereo|c0<c0+c1|c1<c0+c1[aout]")
+                .arg("-map")
+                .arg("[aout]");
+        }
+        // For a single audio track, no filter is needed — FFmpeg selects it automatically.
     }
 
     // No video output
@@ -69,14 +102,6 @@ pub fn export_audio(
     }
 
     Ok(output_path)
-}
-
-/// Resolve the final output path based on the save mode.
-fn resolve_output_path(meeting_dir: &Path, filename: &str, save_mode: &SaveMode) -> PathBuf {
-    match save_mode {
-        SaveMode::Save => meeting_dir.join(filename),
-        SaveMode::SaveAs { path } => path.clone(),
-    }
 }
 
 #[cfg(test)]

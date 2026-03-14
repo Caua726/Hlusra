@@ -1,7 +1,10 @@
 use ashpd::desktop::screencast::{CursorMode, Screencast, SelectSourcesOptions, SourceType, StartCastOptions};
 use ashpd::desktop::{CreateSessionOptions, PersistMode};
 
-#[derive(Debug, Clone)]
+/// Holds a borrowed PipeWire file descriptor and node ID for screen capture.
+/// The fd is borrowed from ScreenCapture's OwnedFd — ScreenCapture must outlive
+/// any pipeline that uses this source, otherwise the fd becomes invalid.
+#[derive(Debug)]
 pub struct PipeWireSource {
     pub node_id: u32,
     pub fd: std::os::fd::RawFd,

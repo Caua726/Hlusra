@@ -11,6 +11,7 @@ pub struct Meeting {
     pub has_video: bool,
     pub file_size: u64,
     pub dir_path: PathBuf,
+    pub tracks: Vec<TrackInfo>,
     pub media_status: MediaStatus,
     pub transcription_status: TranscriptionStatus,
     pub chat_status: ChatStatus,
@@ -132,8 +133,12 @@ impl MediaStatus {
 
     pub fn from_str(s: &str) -> Self {
         match s {
+            "present" => Self::Present,
             "deleted" => Self::Deleted,
-            _ => Self::Present,
+            other => {
+                eprintln!("WARNING: unknown MediaStatus value '{}', defaulting to Present", other);
+                Self::Present
+            }
         }
     }
 }
@@ -150,10 +155,14 @@ impl TranscriptionStatus {
 
     pub fn from_str(s: &str) -> Self {
         match s {
+            "pending" => Self::Pending,
             "processing" => Self::Processing,
             "done" => Self::Done,
             "failed" => Self::Failed,
-            _ => Self::Pending,
+            other => {
+                eprintln!("WARNING: unknown TranscriptionStatus value '{}', defaulting to Pending", other);
+                Self::Pending
+            }
         }
     }
 }
@@ -170,10 +179,14 @@ impl ChatStatus {
 
     pub fn from_str(s: &str) -> Self {
         match s {
+            "not_indexed" => Self::NotIndexed,
             "indexing" => Self::Indexing,
             "ready" => Self::Ready,
             "failed" => Self::Failed,
-            _ => Self::NotIndexed,
+            other => {
+                eprintln!("WARNING: unknown ChatStatus value '{}', defaulting to NotIndexed", other);
+                Self::NotIndexed
+            }
         }
     }
 }
@@ -206,6 +219,9 @@ mod tests {
             has_video: true,
             file_size: 1024,
             dir_path: PathBuf::from("/tmp/test"),
+            tracks: vec![
+                TrackInfo { index: 0, label: "mic".to_string(), codec: "opus".to_string() },
+            ],
             media_status: MediaStatus::Present,
             transcription_status: TranscriptionStatus::Pending,
             chat_status: ChatStatus::NotIndexed,
@@ -213,5 +229,6 @@ mod tests {
         let json = serde_json::to_string(&meeting).unwrap();
         let deserialized: Meeting = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.id, "test-id");
+        assert_eq!(deserialized.tracks.len(), 1);
     }
 }

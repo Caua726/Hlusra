@@ -19,7 +19,15 @@ impl Default for AppSettings {
 impl Default for GeneralSettings {
     fn default() -> Self {
         let recordings_dir = dirs::home_dir()
-            .unwrap_or_else(|| PathBuf::from("~"))
+            .unwrap_or_else(|| {
+                let fallback = std::env::var("HOME")
+                    .unwrap_or_else(|_| "/tmp/hlusra".to_string());
+                eprintln!(
+                    "WARNING: could not determine home dir, falling back to {}",
+                    fallback
+                );
+                PathBuf::from(fallback)
+            })
             .join("Hlusra")
             .join("recordings");
 

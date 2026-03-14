@@ -80,7 +80,15 @@ pub fn config_path() -> PathBuf {
     let config_dir = dirs::config_dir()
         .unwrap_or_else(|| {
             dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("~"))
+                .unwrap_or_else(|| {
+                    let fallback = std::env::var("HOME")
+                        .unwrap_or_else(|_| "/tmp/hlusra".to_string());
+                    eprintln!(
+                        "WARNING: could not determine config dir, falling back to {}",
+                        fallback
+                    );
+                    PathBuf::from(fallback)
+                })
                 .join(".config")
         })
         .join("hlusra");

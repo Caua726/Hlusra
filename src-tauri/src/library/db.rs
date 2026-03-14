@@ -67,10 +67,11 @@ impl LibraryDb {
         Ok(())
     }
 
-    pub fn insert_meeting(&self, meeting: &Meeting) -> rusqlite::Result<()> {
+    pub fn insert_meeting(&self, meeting: &Meeting, tracks: &[TrackInfo]) -> rusqlite::Result<()> {
+        let tracks_json = serde_json::to_string(tracks).unwrap_or_else(|_| "[]".to_string());
         self.conn.execute(
-            "INSERT INTO meetings (id, title, created_at, duration_secs, has_video, file_size, dir_path, media_status, transcription_status, chat_status)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            "INSERT INTO meetings (id, title, created_at, duration_secs, has_video, file_size, dir_path, tracks_json, media_status, transcription_status, chat_status)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 meeting.id,
                 meeting.title,
@@ -79,6 +80,7 @@ impl LibraryDb {
                 meeting.has_video as i32,
                 meeting.file_size as i64,
                 meeting.dir_path.to_string_lossy().to_string(),
+                tracks_json,
                 meeting.media_status.as_str(),
                 meeting.transcription_status.as_str(),
                 meeting.chat_status.as_str(),
@@ -89,7 +91,7 @@ impl LibraryDb {
 
     pub fn get_meeting(&self, id: &str) -> rusqlite::Result<Meeting> {
         self.conn.query_row(
-            "SELECT id, title, created_at, duration_secs, has_video, file_size, dir_path, media_status, transcription_status, chat_status
+            "SELECT id, title, created_at, duration_secs, has_video, file_size, dir_path, tracks_json, media_status, transcription_status, chat_status
              FROM meetings WHERE id = ?1",
             params![id],
             |row| Self::row_to_meeting(row),
@@ -126,6 +128,9 @@ impl LibraryDb {
             "UPDATE meetings SET title = ?1 WHERE id = ?2",
             params![title, id],
         )?;
+        if self.conn.changes() < 1 {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        }
         Ok(())
     }
 
@@ -134,6 +139,9 @@ impl LibraryDb {
             "UPDATE meetings SET transcription_status = ?1 WHERE id = ?2",
             params![status.as_str(), id],
         )?;
+        if self.conn.changes() < 1 {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        }
         Ok(())
     }
 
@@ -142,6 +150,9 @@ impl LibraryDb {
             "UPDATE meetings SET chat_status = ?1 WHERE id = ?2",
             params![status.as_str(), id],
         )?;
+        if self.conn.changes() < 1 {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        }
         Ok(())
     }
 
@@ -150,6 +161,9 @@ impl LibraryDb {
             "UPDATE meetings SET media_status = ?1 WHERE id = ?2",
             params![status.as_str(), id],
         )?;
+        if self.conn.changes() < 1 {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        }
         Ok(())
     }
 
@@ -159,6 +173,8 @@ impl LibraryDb {
     }
 
     fn row_to_meeting(row: &rusqlite::Row) -> rusqlite::Result<Meeting> {
+        let tracks_json_str: String = row.get(7)?;
+        let tracks: Vec<TrackInfo> = serde_json::from_str(&tracks_json_str).unwrap_or_default();
         Ok(Meeting {
             id: row.get(0)?,
             title: row.get(1)?,
@@ -169,9 +185,10 @@ impl LibraryDb {
             has_video: row.get::<_, i32>(4)? != 0,
             file_size: row.get::<_, i64>(5)? as u64,
             dir_path: std::path::PathBuf::from(row.get::<_, String>(6)?),
-            media_status: MediaStatus::from_str(&row.get::<_, String>(7)?),
-            transcription_status: TranscriptionStatus::from_str(&row.get::<_, String>(8)?),
-            chat_status: ChatStatus::from_str(&row.get::<_, String>(9)?),
+            tracks,
+            media_status: MediaStatus::from_str(&row.get::<_, String>(8)?),
+            transcription_status: TranscriptionStatus::from_str(&row.get::<_, String>(9)?),
+            chat_status: ChatStatus::from_str(&row.get::<_, String>(10)?),
         })
     }
 }
@@ -191,6 +208,7 @@ mod tests {
             has_video: true,
             file_size: 1024 * 1024,
             dir_path: PathBuf::from(format!("/tmp/{}", id)),
+            tracks: vec![],
             media_status: MediaStatus::Present,
             transcription_status: TranscriptionStatus::Pending,
             chat_status: ChatStatus::NotIndexed,
@@ -201,18 +219,23 @@ mod tests {
     fn test_insert_and_get() {
         let db = LibraryDb::open_in_memory().unwrap();
         let meeting = make_test_meeting("test-1");
-        db.insert_meeting(&meeting).unwrap();
+        let tracks = vec![
+            TrackInfo { index: 0, label: "mic".to_string(), codec: "opus".to_string() },
+        ];
+        db.insert_meeting(&meeting, &tracks).unwrap();
         let retrieved = db.get_meeting("test-1").unwrap();
         assert_eq!(retrieved.id, "test-1");
         assert_eq!(retrieved.title, "Meeting test-1");
         assert!(retrieved.has_video);
+        assert_eq!(retrieved.tracks.len(), 1);
+        assert_eq!(retrieved.tracks[0].label, "mic");
     }
 
     #[test]
     fn test_list_meetings_ordered() {
         let db = LibraryDb::open_in_memory().unwrap();
-        db.insert_meeting(&make_test_meeting("a")).unwrap();
-        db.insert_meeting(&make_test_meeting("b")).unwrap();
+        db.insert_meeting(&make_test_meeting("a"), &[]).unwrap();
+        db.insert_meeting(&make_test_meeting("b"), &[]).unwrap();
         let list = db.list_meetings().unwrap();
         assert_eq!(list.len(), 2);
     }
@@ -220,7 +243,7 @@ mod tests {
     #[test]
     fn test_update_title() {
         let db = LibraryDb::open_in_memory().unwrap();
-        db.insert_meeting(&make_test_meeting("t1")).unwrap();
+        db.insert_meeting(&make_test_meeting("t1"), &[]).unwrap();
         db.update_title("t1", "New Title").unwrap();
         let m = db.get_meeting("t1").unwrap();
         assert_eq!(m.title, "New Title");
@@ -229,7 +252,7 @@ mod tests {
     #[test]
     fn test_update_statuses() {
         let db = LibraryDb::open_in_memory().unwrap();
-        db.insert_meeting(&make_test_meeting("s1")).unwrap();
+        db.insert_meeting(&make_test_meeting("s1"), &[]).unwrap();
 
         db.update_transcription_status("s1", TranscriptionStatus::Done).unwrap();
         db.update_chat_status("s1", ChatStatus::Ready).unwrap();
@@ -244,7 +267,7 @@ mod tests {
     #[test]
     fn test_delete_meeting() {
         let db = LibraryDb::open_in_memory().unwrap();
-        db.insert_meeting(&make_test_meeting("d1")).unwrap();
+        db.insert_meeting(&make_test_meeting("d1"), &[]).unwrap();
         db.delete_meeting("d1").unwrap();
         assert!(db.get_meeting("d1").is_err());
     }

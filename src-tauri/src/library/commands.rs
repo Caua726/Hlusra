@@ -10,8 +10,8 @@ pub fn list_meetings(library: State<'_, Library>) -> Result<Vec<MeetingSummary>>
 }
 
 #[tauri::command]
-pub fn get_meeting(library: State<'_, Library>, id: String) -> Result<Meeting> {
-    library.get_meeting(&id)
+pub fn get_meeting(library: State<'_, Library>, id: String) -> Result<MeetingDetail> {
+    library.get_meeting_detail(&id)
 }
 
 #[tauri::command]
@@ -26,9 +26,8 @@ pub fn delete_meeting(library: State<'_, Library>, id: String, mode: DeleteMode)
 
 #[tauri::command]
 pub fn get_thumbnail(library: State<'_, Library>, id: String) -> Result<Option<Vec<u8>>> {
-    let meeting = library.get_meeting(&id)?;
-    if library.has_artifact(&meeting.dir_path, &ArtifactKind::Thumbnail) {
-        let data = library.read_artifact(&meeting.dir_path, &ArtifactKind::Thumbnail)?;
+    if library.has_artifact(&id, &ArtifactKind::Thumbnail)? {
+        let data = library.read_artifact(&id, &ArtifactKind::Thumbnail)?;
         Ok(Some(data))
     } else {
         Ok(None)

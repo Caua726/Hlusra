@@ -1,12 +1,17 @@
 use crate::rag::chat::ChatMessage;
 use crate::rag::types::Chunk;
 
-/// Format seconds as MM:SS for display in prompts.
+/// Format seconds as MM:SS (or HH:MM:SS when >= 3600s) for display in prompts.
 fn format_timestamp(seconds: f64) -> String {
     let total_secs = seconds as u64;
-    let minutes = total_secs / 60;
+    let hours = total_secs / 3600;
+    let minutes = (total_secs % 3600) / 60;
     let secs = total_secs % 60;
-    format!("{:02}:{:02}", minutes, secs)
+    if hours > 0 {
+        format!("{:02}:{:02}:{:02}", hours, minutes, secs)
+    } else {
+        format!("{:02}:{:02}", minutes, secs)
+    }
 }
 
 /// The system prompt that instructs the LLM how to behave.
@@ -97,7 +102,7 @@ mod tests {
     fn test_format_timestamp() {
         assert_eq!(format_timestamp(0.0), "00:00");
         assert_eq!(format_timestamp(65.0), "01:05");
-        assert_eq!(format_timestamp(3661.0), "61:01");
+        assert_eq!(format_timestamp(3661.0), "01:01:01");
     }
 
     #[test]

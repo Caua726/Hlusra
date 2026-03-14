@@ -14,6 +14,8 @@ pub enum LibraryError {
     Io(#[from] std::io::Error),
     #[error("Meeting not found: {0}")]
     NotFound(String),
+    #[error("Internal error: {0}")]
+    Internal(String),
 }
 
 impl serde::Serialize for LibraryError {
@@ -73,6 +75,7 @@ impl Library {
         let dir_path = self.prepared.lock().unwrap().remove(id)
             .ok_or(LibraryError::NotFound(format!("No prepared meeting with id {}", id)))?;
 
+        let tracks = info.tracks.clone();
         let meeting = Meeting {
             id: id.to_string(),
             title,
@@ -81,35 +84,63 @@ impl Library {
             has_video: info.has_video,
             file_size: info.file_size,
             dir_path,
+            tracks: tracks.clone(),
             media_status: MediaStatus::Present,
             transcription_status: TranscriptionStatus::Pending,
             chat_status: ChatStatus::NotIndexed,
         };
 
-        let db = self.db.lock().map_err(|_| LibraryError::NotFound("lock poisoned".to_string()))?;
-        db.insert_meeting(&meeting)?;
+        let db = self.db.lock().map_err(|_| LibraryError::Internal("lock poisoned".to_string()))?;
+        db.insert_meeting(&meeting, &tracks)?;
 
         Ok(meeting)
     }
 
     pub fn get_meeting(&self, id: &str) -> Result<Meeting> {
-        let db = self.db.lock().map_err(|_| LibraryError::NotFound("lock poisoned".to_string()))?;
+        let db = self.db.lock().map_err(|_| LibraryError::Internal("lock poisoned".to_string()))?;
         db.get_meeting(id).map_err(|_| LibraryError::NotFound(id.to_string()))
     }
 
+    pub fn get_meeting_detail(&self, id: &str) -> Result<MeetingDetail> {
+        let meeting = self.get_meeting(id)?;
+
+        // Optionally read transcript.txt from filesystem
+        let transcript = if self.fs.has_artifact(&meeting.dir_path, &ArtifactKind::TranscriptTxt) {
+            let data = self.fs.read_artifact(&meeting.dir_path, &ArtifactKind::TranscriptTxt)?;
+            Some(String::from_utf8_lossy(&data).into_owned())
+        } else {
+            None
+        };
+
+        Ok(MeetingDetail {
+            id: meeting.id,
+            title: meeting.title,
+            created_at: meeting.created_at,
+            duration_secs: meeting.duration_secs,
+            has_video: meeting.has_video,
+            file_size: meeting.file_size,
+            dir_path: meeting.dir_path,
+            media_status: meeting.media_status,
+            transcription_status: meeting.transcription_status,
+            chat_status: meeting.chat_status,
+            tracks: meeting.tracks,
+            transcript,
+        })
+    }
+
     pub fn list_meetings(&self) -> Result<Vec<MeetingSummary>> {
-        let db = self.db.lock().map_err(|_| LibraryError::NotFound("lock poisoned".to_string()))?;
+        let db = self.db.lock().map_err(|_| LibraryError::Internal("lock poisoned".to_string()))?;
         Ok(db.list_meetings()?)
     }
 
     pub fn update_title(&self, id: &str, title: &str) -> Result<()> {
-        let db = self.db.lock().map_err(|_| LibraryError::NotFound("lock poisoned".to_string()))?;
+        let db = self.db.lock().map_err(|_| LibraryError::Internal("lock poisoned".to_string()))?;
         Ok(db.update_title(id, title)?)
     }
 
     pub fn delete_meeting(&self, id: &str, mode: DeleteMode) -> Result<()> {
         // Single lock acquisition to avoid TOCTOU race
-        let db = self.db.lock().map_err(|_| LibraryError::NotFound("lock poisoned".to_string()))?;
+        let db = self.db.lock().map_err(|_| LibraryError::Internal("lock poisoned".to_string()))?;
         let meeting = db.get_meeting(id).map_err(|_| LibraryError::NotFound(id.to_string()))?;
 
         match mode {
@@ -126,29 +157,33 @@ impl Library {
     }
 
     pub fn update_transcription_status(&self, id: &str, status: TranscriptionStatus) -> Result<()> {
-        let db = self.db.lock().map_err(|_| LibraryError::NotFound("lock poisoned".to_string()))?;
+        let db = self.db.lock().map_err(|_| LibraryError::Internal("lock poisoned".to_string()))?;
         Ok(db.update_transcription_status(id, status)?)
     }
 
     pub fn update_chat_status(&self, id: &str, status: ChatStatus) -> Result<()> {
-        let db = self.db.lock().map_err(|_| LibraryError::NotFound("lock poisoned".to_string()))?;
+        let db = self.db.lock().map_err(|_| LibraryError::Internal("lock poisoned".to_string()))?;
         Ok(db.update_chat_status(id, status)?)
     }
 
-    pub fn save_artifact(&self, meeting_dir: &Path, kind: &ArtifactKind, data: &[u8]) -> Result<PathBuf> {
-        Ok(self.fs.save_artifact(meeting_dir, kind, data)?)
+    pub fn save_artifact(&self, id: &str, kind: &ArtifactKind, data: &[u8]) -> Result<PathBuf> {
+        let meeting = self.get_meeting(id)?;
+        Ok(self.fs.save_artifact(&meeting.dir_path, kind, data)?)
     }
 
-    pub fn get_artifact_path(&self, meeting_dir: &Path, kind: &ArtifactKind) -> PathBuf {
-        self.fs.get_artifact_path(meeting_dir, kind)
+    pub fn get_artifact_path(&self, id: &str, kind: &ArtifactKind) -> Result<PathBuf> {
+        let meeting = self.get_meeting(id)?;
+        Ok(self.fs.get_artifact_path(&meeting.dir_path, kind))
     }
 
-    pub fn has_artifact(&self, meeting_dir: &Path, kind: &ArtifactKind) -> bool {
-        self.fs.has_artifact(meeting_dir, kind)
+    pub fn has_artifact(&self, id: &str, kind: &ArtifactKind) -> Result<bool> {
+        let meeting = self.get_meeting(id)?;
+        Ok(self.fs.has_artifact(&meeting.dir_path, kind))
     }
 
-    pub fn read_artifact(&self, meeting_dir: &Path, kind: &ArtifactKind) -> Result<Vec<u8>> {
-        Ok(self.fs.read_artifact(meeting_dir, kind)?)
+    pub fn read_artifact(&self, id: &str, kind: &ArtifactKind) -> Result<Vec<u8>> {
+        let meeting = self.get_meeting(id)?;
+        Ok(self.fs.read_artifact(&meeting.dir_path, kind)?)
     }
 }
 
@@ -225,20 +260,21 @@ mod tests {
     fn test_delete_media_only() {
         let (lib, _tmp) = setup();
         let p = lib.prepare_meeting().unwrap();
-        lib.save_artifact(&p.dir_path, &ArtifactKind::Recording, b"video").unwrap();
-        lib.save_artifact(&p.dir_path, &ArtifactKind::TranscriptTxt, b"text").unwrap();
 
         lib.finalize_meeting(&p.id, RecordingInfo {
             duration_secs: 60.0, has_video: true, file_size: 512,
             tracks: vec![],
         }).unwrap();
 
+        lib.save_artifact(&p.id, &ArtifactKind::Recording, b"video").unwrap();
+        lib.save_artifact(&p.id, &ArtifactKind::TranscriptTxt, b"text").unwrap();
+
         lib.delete_meeting(&p.id, DeleteMode::MediaOnly).unwrap();
 
         let m = lib.get_meeting(&p.id).unwrap();
         assert_eq!(m.media_status, MediaStatus::Deleted);
-        assert!(!lib.has_artifact(&p.dir_path, &ArtifactKind::Recording));
-        assert!(lib.has_artifact(&p.dir_path, &ArtifactKind::TranscriptTxt));
+        assert!(!lib.has_artifact(&p.id, &ArtifactKind::Recording).unwrap());
+        assert!(lib.has_artifact(&p.id, &ArtifactKind::TranscriptTxt).unwrap());
     }
 
     #[test]
@@ -246,10 +282,15 @@ mod tests {
         let (lib, _tmp) = setup();
         let p = lib.prepare_meeting().unwrap();
 
-        lib.save_artifact(&p.dir_path, &ArtifactKind::TranscriptJson, b"{\"text\":\"hello\"}").unwrap();
-        assert!(lib.has_artifact(&p.dir_path, &ArtifactKind::TranscriptJson));
+        lib.finalize_meeting(&p.id, RecordingInfo {
+            duration_secs: 60.0, has_video: false, file_size: 512,
+            tracks: vec![],
+        }).unwrap();
 
-        let data = lib.read_artifact(&p.dir_path, &ArtifactKind::TranscriptJson).unwrap();
+        lib.save_artifact(&p.id, &ArtifactKind::TranscriptJson, b"{\"text\":\"hello\"}").unwrap();
+        assert!(lib.has_artifact(&p.id, &ArtifactKind::TranscriptJson).unwrap());
+
+        let data = lib.read_artifact(&p.id, &ArtifactKind::TranscriptJson).unwrap();
         assert_eq!(data, b"{\"text\":\"hello\"}");
     }
 }
