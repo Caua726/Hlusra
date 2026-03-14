@@ -59,25 +59,36 @@ pub fn download_model(model_name: &str) -> Result<(), String> {
     let url = model.download_url();
     let part_path = dir.join(format!("{}.part", model.filename()));
 
-    let mut response = reqwest::blocking::get(&url)
-        .map_err(|e| format!("Failed to start download for {model_name}: {e}"))?;
+    let do_download = || -> Result<(), String> {
+        let mut response = reqwest::blocking::get(&url)
+            .map_err(|e| format!("Failed to start download for {model_name}: {e}"))?;
 
-    if !response.status().is_success() {
-        return Err(format!(
-            "Download failed for {model_name}: HTTP {}",
-            response.status()
-        ));
+        if !response.status().is_success() {
+            return Err(format!(
+                "Download failed for {model_name}: HTTP {}",
+                response.status()
+            ));
+        }
+
+        let mut file = fs::File::create(&part_path)
+            .map_err(|e| format!("Failed to create temp file: {e}"))?;
+        io::copy(&mut response, &mut file)
+            .map_err(|e| format!("Failed to download {model_name}: {e}"))?;
+
+        file.sync_all()
+            .map_err(|e| format!("Failed to sync model file to disk: {e}"))?;
+
+        fs::rename(&part_path, &dest)
+            .map_err(|e| format!("Failed to finalize model file: {e}"))?;
+
+        Ok(())
+    };
+
+    let result = do_download();
+    if result.is_err() {
+        let _ = fs::remove_file(&part_path);
     }
-
-    let mut file = fs::File::create(&part_path)
-        .map_err(|e| format!("Failed to create temp file: {e}"))?;
-    io::copy(&mut response, &mut file)
-        .map_err(|e| format!("Failed to download {model_name}: {e}"))?;
-
-    fs::rename(&part_path, &dest)
-        .map_err(|e| format!("Failed to finalize model file: {e}"))?;
-
-    Ok(())
+    result
 }
 
 /// Returns the currently active model. Falls back to the default (`tiny`) if
@@ -103,6 +114,11 @@ pub fn get_active_model() -> Result<WhisperModel, String> {
 
 /// Persists the user's model selection. The model must already be downloaded.
 pub fn set_active_model(model_name: &str) -> Result<(), String> {
+    let catalogue = all_models();
+    if !catalogue.iter().any(|m| m.name == model_name) {
+        return Err(format!("Unknown model: '{model_name}'"));
+    }
+
     let dir = models_dir()?;
     let model_file = dir.join(format!("ggml-{model_name}.bin"));
     if !model_file.exists() {

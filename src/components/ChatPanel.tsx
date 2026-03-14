@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { chatMessage, indexMeeting, getChatStatus } from "../lib/api";
+import type { ChatStatus } from "../lib/api";
 import { formatError } from "../lib/format";
 
 interface Props {
   meetingId: string;
-  chatStatus: "not_indexed" | "indexing" | "ready" | "failed";
+  chatStatus: ChatStatus;
   meetingTitle: string;
   onBack: () => void;
-  onStatusChange: () => void;
+  onStatusChange: (status: ChatStatus) => void;
 }
 
 interface ChatMsg {
@@ -22,10 +23,10 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
   const [sending, setSending] = useState(false);
   const [indexing, setIndexing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentStatus, setCurrentStatus] = useState(chatStatus);
+  const [currentStatus, setCurrentStatus] = useState<ChatStatus>(chatStatus);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const streamBufferRef = useRef("");
   const mountedRef = useRef(true);
+  const sendingRef = useRef(false);
   const cleanupListenersRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -62,8 +63,8 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
       await indexMeeting(meetingId);
       const status = await getChatStatus(meetingId);
       if (!mountedRef.current) return;
-      setCurrentStatus(status as "not_indexed" | "indexing" | "ready" | "failed");
-      onStatusChange();
+      setCurrentStatus(status);
+      onStatusChange(status);
     } catch (e) {
       if (!mountedRef.current) return;
       setError(formatError(e));
@@ -74,12 +75,12 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
 
   async function handleSend() {
     const msg = input.trim();
-    if (!msg || sending) return;
+    if (!msg || sending || sendingRef.current) return;
 
+    sendingRef.current = true;
     setError(null);
     setInput("");
     setSending(true);
-    streamBufferRef.current = "";
 
     setMessages((prev) => [
       ...prev,
@@ -88,7 +89,6 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
     ]);
 
     const unlistenChunk = await listen<string>("chat-stream-chunk", (event) => {
-      streamBufferRef.current += event.payload;
       appendToLastAssistant(event.payload);
     });
 
@@ -122,6 +122,7 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
     } finally {
       cleanup();
       if (mountedRef.current) setSending(false);
+      sendingRef.current = false;
     }
   }
 
@@ -138,7 +139,7 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
       <>
         <header className="glass shrink-0 border-b border-white/5">
           <div className="px-5 h-12 flex items-center gap-3">
-            <button onClick={onBack} className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+            <button onClick={onBack} aria-label="Voltar" className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
               </svg>
@@ -149,15 +150,15 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
         </header>
         <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
           {currentStatus === "failed" && (
-            <p className="text-red-500 text-[12px]">A indexacao falhou.</p>
+            <p className="text-red-500 text-[12px]">A indexação falhou.</p>
           )}
-          <p className="text-white/30 text-[13px]">A reuniao precisa ser indexada antes de usar o chat.</p>
+          <p className="text-white/30 text-[13px]">A reunião precisa ser indexada antes de usar o chat.</p>
           <button
             className="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-[12px] font-medium transition-all active:scale-[0.98] glow-sm cursor-pointer border-0 disabled:opacity-40"
             onClick={handleIndex}
             disabled={indexing}
           >
-            {indexing ? "Indexando..." : "Indexar reuniao"}
+            {indexing ? "Indexando..." : "Indexar reunião"}
           </button>
           {error && <p className="text-red-500 text-[12px]">{error}</p>}
         </div>
@@ -171,7 +172,7 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
       <>
         <header className="glass shrink-0 border-b border-white/5">
           <div className="px-5 h-12 flex items-center gap-3">
-            <button onClick={onBack} className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+            <button onClick={onBack} aria-label="Voltar" className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
               </svg>
@@ -182,7 +183,7 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
         </header>
         <div className="flex-1 flex flex-col items-center justify-center gap-3 text-white/30">
           <div className="w-6 h-6 border-[3px] border-white/10 border-t-brand-500 rounded-full animate-[spin_0.7s_linear_infinite]" />
-          <p className="text-[13px]">Indexando reuniao...</p>
+          <p className="text-[13px]">Indexando reunião...</p>
         </div>
       </>
     );
@@ -194,7 +195,7 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
       <header className="glass shrink-0 border-b border-white/5">
         <div className="px-5 h-12 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={onBack} className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+            <button onClick={onBack} aria-label="Voltar" className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
               </svg>
@@ -213,12 +214,12 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full">
-            <p className="text-white/20 text-[13px]">Faca uma pergunta sobre esta reuniao.</p>
+            <p className="text-white/20 text-[13px]">Faça uma pergunta sobre esta reunião.</p>
           </div>
         )}
         {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} stagger`}>
-            <div className={`rounded-2xl px-4 py-3 max-w-[${msg.role === "user" ? "75" : "80"}%] ${
+          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div className={`rounded-2xl px-4 py-3 ${msg.role === "user" ? "max-w-[75%]" : "max-w-[80%]"} ${
               msg.role === "user"
                 ? "bg-brand-500/8 border border-brand-500/10 rounded-br-md"
                 : "glass-heavy rounded-bl-md"
@@ -239,7 +240,7 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
         <div className="flex gap-2">
           <input
             type="text"
-            placeholder="Pergunte sobre a reuniao..."
+            placeholder="Pergunte sobre a reunião..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -249,6 +250,7 @@ export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack,
           <button
             onClick={handleSend}
             disabled={sending || !input.trim()}
+            aria-label="Enviar mensagem"
             className="px-5 py-3 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-xl text-[12px] font-medium transition-all active:scale-95 glow-sm hover:shadow-lg hover:shadow-brand-500/20 border-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -24,6 +24,10 @@ pub fn chunk_transcript(
     transcript: &TranscriptResult,
     chunk_size: usize,
 ) -> Vec<Chunk> {
+    if chunk_size == 0 {
+        return Vec::new();
+    }
+
     if transcript.segments.is_empty() {
         return Vec::new();
     }
@@ -36,6 +40,11 @@ pub fn chunk_transcript(
     let mut chunk_index: usize = 0;
 
     for segment in &transcript.segments {
+        // Skip segments with empty/whitespace-only text.
+        if segment.text.trim().is_empty() {
+            continue;
+        }
+
         let seg_tokens = estimate_tokens(&segment.text);
 
         // If adding this segment would exceed the limit and we already have

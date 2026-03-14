@@ -61,12 +61,22 @@ pub fn run_transcription_pipeline(
 /// Extracts the mic track (stream 0) from the MKV recording using FFmpeg CLI
 /// and writes it to a 16 kHz mono PCM s16le WAV file.
 fn extract_mic_to_wav(mkv_path: &Path, wav_path: &Path) -> Result<(), String> {
+    if !mkv_path.exists() {
+        return Err(format!(
+            "Input MKV file does not exist: {}",
+            mkv_path.display()
+        ));
+    }
+
     let output = std::process::Command::new("ffmpeg")
         .arg("-y")
+        .arg("-loglevel")
+        .arg("error")
         .arg("-i")
         .arg(mkv_path)
         .arg("-map")
         .arg("0:a:0") // first audio stream (mic)
+        .arg("-vn")
         .arg("-ac")
         .arg("1") // mono
         .arg("-ar")

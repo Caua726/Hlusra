@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::time::Duration;
 
 use reqwest::blocking::multipart;
 use serde::Deserialize;
@@ -14,6 +15,8 @@ pub struct ApiProvider {
     api_key: String,
     /// Model identifier sent in the form field (e.g. "whisper-1").
     model: String,
+    /// Reusable HTTP client with a long timeout for transcription requests.
+    client: reqwest::blocking::Client,
 }
 
 /// Matches the OpenAI verbose JSON response for `/v1/audio/transcriptions`.
@@ -47,10 +50,15 @@ struct ApiWord {
 
 impl ApiProvider {
     pub fn new(base_url: String, api_key: String, model: String) -> Self {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(600))
+            .build()
+            .expect("Failed to build HTTP client");
         Self {
             base_url,
             api_key,
             model,
+            client,
         }
     }
 }
@@ -63,7 +71,10 @@ impl TranscriptionProvider for ApiProvider {
         );
 
         let file_part = multipart::Part::file(audio_path)
-            .map_err(|e| format!("Failed to read audio file for upload: {e}"))?;
+            .map_err(|e| format!("Failed to read audio file for upload: {e}"))?
+            .file_name("audio.wav")
+            .mime_str("audio/wav")
+            .unwrap();
 
         let form = multipart::Form::new()
             .part("file", file_part)
@@ -71,8 +82,7 @@ impl TranscriptionProvider for ApiProvider {
             .text("response_format", "verbose_json")
             .text("timestamp_granularities[]", "word");
 
-        let client = reqwest::blocking::Client::new();
-        let mut request = client.post(&url).multipart(form);
+        let mut request = self.client.post(&url).multipart(form);
 
         if !self.api_key.is_empty() {
             request = request.bearer_auth(&self.api_key);

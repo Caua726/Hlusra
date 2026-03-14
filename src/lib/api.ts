@@ -57,6 +57,8 @@ export interface Meeting {
 // ---------------------------------------------------------------------------
 
 export type RecordingState = "idle" | "recording" | "stopped";
+export type TranscriptionStatus = "pending" | "processing" | "done" | "failed";
+export type ChatStatus = "not_indexed" | "indexing" | "ready" | "failed";
 
 export interface RecordingStatus {
   state: RecordingState;
@@ -208,7 +210,7 @@ export async function retranscribeMeeting(id: string): Promise<void> {
   return invoke("retranscribe_meeting", { id });
 }
 
-export async function getTranscriptionStatus(id: string): Promise<string> {
+export async function getTranscriptionStatus(id: string): Promise<TranscriptionStatus> {
   return invoke("get_transcription_status", { id });
 }
 
@@ -248,8 +250,12 @@ export async function chatMessage(meetingId: string, message: string): Promise<v
   return invoke("chat_message", { meetingId, message });
 }
 
-export async function getChatStatus(id: string): Promise<string> {
+export async function getChatStatus(id: string): Promise<ChatStatus> {
   return invoke("get_chat_status", { id });
+}
+
+export async function getThumbnail(id: string): Promise<number[] | null> {
+  return invoke("get_thumbnail", { id });
 }
 
 // ---------------------------------------------------------------------------

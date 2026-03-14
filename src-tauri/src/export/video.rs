@@ -8,7 +8,8 @@ use super::ExportError;
 ///
 /// Transcodes from the source MKV (H.265) to the target codec and container.
 /// When the target codec matches the source, stream-copies the video to avoid
-/// re-encoding. Audio is copied as-is.
+/// re-encoding. For MP4 output, audio is transcoded to AAC (Opus is not valid
+/// in MP4). For MKV output, audio is copied as-is.
 ///
 /// Uses FFmpeg CLI for media processing (MVP approach).
 pub fn export_video(
@@ -30,27 +31,40 @@ pub fn export_video(
 
     let mut cmd = Command::new("ffmpeg");
     cmd.arg("-y") // overwrite
+        .arg("-loglevel")
+        .arg("error")
         .arg("-i")
         .arg(&source);
 
     // Determine if we can stream-copy video or need to transcode.
     // Source is H.265/MKV. If target is also H.265, we can copy the stream.
-    match format {
-        VideoFormat::Mp4H265 | VideoFormat::MkvH265 => {
-            // Same codec, stream copy
-            cmd.arg("-codec:v").arg("copy");
-        }
-        VideoFormat::Mp4H264 | VideoFormat::MkvH264 => {
-            // Need to transcode from H.265 to H.264
-            cmd.arg("-codec:v").arg("libx264").arg("-preset").arg("medium");
-        }
+    if format.needs_transcode() {
+        cmd.arg("-codec:v")
+            .arg(format.codec_name())
+            .arg("-preset")
+            .arg("medium")
+            .arg("-crf")
+            .arg("20");
+    } else {
+        // Same codec as source, stream copy
+        cmd.arg("-codec:v").arg("copy");
     }
 
-    // Copy audio streams
-    cmd.arg("-codec:a").arg("copy");
+    // Audio handling: MP4 cannot hold Opus, so transcode to AAC.
+    // MKV supports Opus natively, so we can stream-copy.
+    if format.is_mp4() {
+        cmd.arg("-codec:a").arg("aac").arg("-b:a").arg("128k");
+    } else {
+        cmd.arg("-codec:a").arg("copy");
+    }
 
     // Output format
     cmd.arg("-f").arg(format.container_name());
+
+    // For MP4, move the moov atom to the beginning for web streaming
+    if format.is_mp4() {
+        cmd.arg("-movflags").arg("+faststart");
+    }
 
     cmd.arg(&output_path);
 

@@ -9,6 +9,7 @@ pub struct LibraryFs {
 impl LibraryFs {
     pub fn new(base_dir: PathBuf) -> std::io::Result<Self> {
         fs::create_dir_all(&base_dir)?;
+        let base_dir = fs::canonicalize(&base_dir)?;
         Ok(LibraryFs { base_dir })
     }
 
@@ -24,7 +25,9 @@ impl LibraryFs {
 
     pub fn save_artifact(&self, meeting_dir: &Path, kind: &ArtifactKind, data: &[u8]) -> std::io::Result<PathBuf> {
         let path = self.get_artifact_path(meeting_dir, kind);
-        fs::write(&path, data)?;
+        let tmp_path = path.with_extension("tmp");
+        fs::write(&tmp_path, data)?;
+        fs::rename(&tmp_path, &path)?;
         Ok(path)
     }
 
@@ -33,20 +36,38 @@ impl LibraryFs {
     }
 
     pub fn delete_meeting_dir(&self, meeting_dir: &Path) -> std::io::Result<()> {
-        if meeting_dir.exists() {
-            fs::remove_dir_all(meeting_dir)?;
+        // Reject symlinks to prevent traversal attacks
+        match fs::symlink_metadata(meeting_dir) {
+            Ok(meta) => {
+                if meta.file_type().is_symlink() {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "refusing to delete symlink meeting directory",
+                    ));
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => return Err(e),
         }
-        Ok(())
+        match fs::remove_dir_all(meeting_dir) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(e),
+        }
     }
 
     pub fn delete_media_files(&self, meeting_dir: &Path) -> std::io::Result<()> {
         let recording = self.get_artifact_path(meeting_dir, &ArtifactKind::Recording);
-        if recording.exists() {
-            fs::remove_file(&recording)?;
+        match fs::remove_file(&recording) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
         }
         let thumbnail = self.get_artifact_path(meeting_dir, &ArtifactKind::Thumbnail);
-        if thumbnail.exists() {
-            fs::remove_file(&thumbnail)?;
+        match fs::remove_file(&thumbnail) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
         }
         Ok(())
     }

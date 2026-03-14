@@ -3,7 +3,7 @@ use crate::rag::types::Chunk;
 
 /// Format seconds as MM:SS (or HH:MM:SS when >= 3600s) for display in prompts.
 fn format_timestamp(seconds: f64) -> String {
-    let total_secs = seconds as u64;
+    let total_secs = seconds.max(0.0) as u64;
     let hours = total_secs / 3600;
     let minutes = (total_secs % 3600) / 60;
     let secs = total_secs % 60;
@@ -29,26 +29,23 @@ Guidelines:
 /// Build the full list of messages for a chat completion request.
 ///
 /// The message list consists of:
-/// 1. A system prompt with instructions
-/// 2. A system message with the relevant transcript chunks (with timestamps)
-/// 3. The user's question
+/// 1. A single system message with instructions and relevant transcript context
+/// 2. The user's question
 pub fn build_messages(chunks: &[Chunk], user_question: &str) -> Vec<ChatMessage> {
-    let mut messages = Vec::with_capacity(3);
+    let mut messages = Vec::with_capacity(2);
 
-    // System prompt.
+    // Single system message: instructions + context (if any).
+    let system_content = if !chunks.is_empty() {
+        let context = build_context(chunks);
+        format!("{}\n\n{}", SYSTEM_PROMPT, context.trim_end())
+    } else {
+        SYSTEM_PROMPT.to_string()
+    };
+
     messages.push(ChatMessage {
         role: "system".to_string(),
-        content: SYSTEM_PROMPT.to_string(),
+        content: system_content,
     });
-
-    // Context from transcript chunks.
-    if !chunks.is_empty() {
-        let context = build_context(chunks);
-        messages.push(ChatMessage {
-            role: "system".to_string(),
-            content: context,
-        });
-    }
 
     // User question.
     messages.push(ChatMessage {
@@ -113,16 +110,16 @@ mod tests {
         ];
         let messages = build_messages(&chunks, "What was discussed?");
 
-        assert_eq!(messages.len(), 3);
+        // System + user (context merged into single system message).
+        assert_eq!(messages.len(), 2);
         assert_eq!(messages[0].role, "system");
         assert!(messages[0].content.contains("AI assistant"));
-        assert_eq!(messages[1].role, "system");
-        assert!(messages[1].content.contains("Excerpt 1"));
-        assert!(messages[1].content.contains("00:00 - 00:30"));
-        assert!(messages[1].content.contains("Excerpt 2"));
-        assert!(messages[1].content.contains("00:30 - 01:00"));
-        assert_eq!(messages[2].role, "user");
-        assert_eq!(messages[2].content, "What was discussed?");
+        assert!(messages[0].content.contains("Excerpt 1"));
+        assert!(messages[0].content.contains("00:00 - 00:30"));
+        assert!(messages[0].content.contains("Excerpt 2"));
+        assert!(messages[0].content.contains("00:30 - 01:00"));
+        assert_eq!(messages[1].role, "user");
+        assert_eq!(messages[1].content, "What was discussed?");
     }
 
     #[test]

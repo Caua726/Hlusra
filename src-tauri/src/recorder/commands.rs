@@ -5,6 +5,7 @@ use crate::library::types::{RecordingInfo, TrackInfo};
 use crate::recorder::capture::ScreenCapture;
 use crate::recorder::pipeline::RecordingPipeline;
 use crate::recorder::types::*;
+use crate::settings::config::load_settings;
 
 pub struct RecorderState {
     pipeline: Mutex<Option<RecordingPipeline>>,
@@ -37,8 +38,38 @@ pub async fn start_recording(
     eprintln!("[recorder] meeting prepared: id={}, dir={:?}", prepared.id, prepared.dir_path);
 
     let output_path = prepared.dir_path.join("recording.mkv");
-    let video_config = VideoConfig::default();
-    let audio_config = AudioConfig::default();
+
+    let settings = load_settings().unwrap_or_default();
+
+    let video_codec = match settings.video.codec.as_str() {
+        "h264" => VideoCodec::H264,
+        "av1" => VideoCodec::Av1,
+        _ => VideoCodec::H265,
+    };
+    let video_backend = match settings.video.backend.as_str() {
+        "cuda" => EncoderBackend::Cuda,
+        "software" => EncoderBackend::Software,
+        _ => EncoderBackend::Vaapi,
+    };
+    let (width, height) = match settings.video.resolution.as_str() {
+        "1080p" => (1920, 1080),
+        "480p" => (854, 480),
+        "1440p" => (2560, 1440),
+        "4k" | "2160p" => (3840, 2160),
+        _ => (1280, 720),
+    };
+
+    let video_config = VideoConfig {
+        codec: video_codec,
+        backend: video_backend,
+        bitrate: settings.video.bitrate,
+        fps: settings.video.fps,
+        width,
+        height,
+    };
+    let audio_config = AudioConfig {
+        bitrate: settings.audio.bitrate,
+    };
 
     let mut pipeline = if with_video {
         eprintln!("[recorder] building video pipeline, requesting screen...");
@@ -76,20 +107,35 @@ pub async fn start_recording(
 }
 
 #[tauri::command]
-pub fn stop_recording(
+pub async fn stop_recording(
     library: State<'_, Library>,
     recorder: State<'_, RecorderState>,
 ) -> Result<crate::library::types::Meeting, String> {
     eprintln!("[recorder] stop_recording called");
-    let mut pipeline_lock = recorder.pipeline.lock().map_err(|_| "Recorder lock poisoned".to_string())?;
-    let pipeline = pipeline_lock.take().ok_or("Nenhuma gravação ativa")?;
+    let pipeline = {
+        let mut pipeline_lock = recorder.pipeline.lock().map_err(|_| "Recorder lock poisoned".to_string())?;
+        pipeline_lock.take().ok_or("Nenhuma gravação ativa")?
+    };
+
+    // Capture duration BEFORE stop so EOS wait isn't included
+    let duration = pipeline.duration_secs();
+    let has_video = pipeline.has_video();
 
     eprintln!("[recorder] stopping pipeline (sending EOS)...");
-    pipeline.stop().map_err(|e| {
-        eprintln!("[recorder] pipeline.stop() failed: {}", e);
-        format!("Falha ao parar gravação: {}", e)
-    })?;
-    eprintln!("[recorder] pipeline stopped, duration={}s, size={}bytes", pipeline.duration_secs(), pipeline.file_size());
+    let pipeline = tokio::task::spawn_blocking(move || -> Result<RecordingPipeline, String> {
+        let mut pipeline = pipeline;
+        pipeline.stop().map_err(|e| {
+            eprintln!("[recorder] pipeline.stop() failed: {}", e);
+            format!("Falha ao parar gravação: {}", e)
+        })?;
+        Ok(pipeline)
+    })
+    .await
+    .map_err(|e| format!("spawn_blocking join error: {}", e))?
+    ?;
+
+    let file_size = pipeline.file_size();
+    eprintln!("[recorder] pipeline stopped, duration={}s, size={}bytes", duration, file_size);
 
     // Release screen capture fd
     *recorder.capture.lock().map_err(|_| "Recorder lock poisoned".to_string())? = None;
@@ -97,14 +143,24 @@ pub fn stop_recording(
     let meeting_id = recorder.current_meeting_id.lock().map_err(|_| "Recorder lock poisoned".to_string())?.take()
         .ok_or("No meeting ID")?;
 
+    // Build track metadata dynamically based on whether video was recorded
+    let tracks = if has_video {
+        vec![
+            TrackInfo { index: 0, label: "video".into(), codec: "h265".into() },
+            TrackInfo { index: 1, label: "mic".into(), codec: "opus".into() },
+            TrackInfo { index: 2, label: "system".into(), codec: "opus".into() },
+        ]
+    } else {
+        vec![
+            TrackInfo { index: 0, label: "mic".into(), codec: "opus".into() },
+        ]
+    };
+
     let info = RecordingInfo {
-        duration_secs: pipeline.duration_secs(),
-        has_video: pipeline.has_video(),
-        file_size: pipeline.file_size(),
-        tracks: vec![
-            TrackInfo { index: 0, label: "mic".to_string(), codec: "opus".to_string() },
-            TrackInfo { index: 1, label: "system".to_string(), codec: "opus".to_string() },
-        ],
+        duration_secs: duration,
+        has_video,
+        file_size,
+        tracks,
     };
 
     // Library tracks dir_path internally from prepare_meeting

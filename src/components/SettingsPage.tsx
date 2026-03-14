@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   getSettings,
   updateSettings,
@@ -19,9 +19,9 @@ type SettingsTab = "geral" | "video" | "audio" | "trans" | "rag";
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: "geral", label: "Geral" },
-  { id: "video", label: "Video" },
-  { id: "audio", label: "Audio" },
-  { id: "trans", label: "Transcricao" },
+  { id: "video", label: "Vídeo" },
+  { id: "audio", label: "Áudio" },
+  { id: "trans", label: "Transcrição" },
   { id: "rag", label: "RAG / Chat" },
 ];
 
@@ -32,6 +32,7 @@ export default function SettingsPage({ onBack }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>("geral");
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Encoder probing
   const [encoders, setEncoders] = useState<Record<string, string[]>>({});
@@ -43,6 +44,9 @@ export default function SettingsPage({ onBack }: Props) {
 
   useEffect(() => {
     loadAll();
+    return () => {
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    };
   }, []);
 
   async function loadAll() {
@@ -65,9 +69,14 @@ export default function SettingsPage({ onBack }: Props) {
   }
 
   function update(fn: (s: AppSettings) => AppSettings) {
-    if (!settings) return;
     setSaved(false);
-    setSettings(fn(settings));
+    setSettings((prev) => prev ? fn(prev) : prev);
+  }
+
+  function handleTabSwitch(tab: SettingsTab) {
+    setActiveTab(tab);
+    setError(null);
+    setSaved(false);
   }
 
   async function handleSave() {
@@ -78,6 +87,8 @@ export default function SettingsPage({ onBack }: Props) {
     try {
       await updateSettings(settings);
       setSaved(true);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setSaved(false), 3000);
     } catch (e) {
       setError(formatError(e));
     } finally {
@@ -115,12 +126,12 @@ export default function SettingsPage({ onBack }: Props) {
       <>
         <header className="glass shrink-0 border-b border-white/5">
           <div className="px-5 h-12 flex items-center gap-3">
-            <button onClick={onBack} className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+            <button onClick={onBack} aria-label="Voltar" className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <h1 className="text-sm font-semibold text-white/80">Configuracoes</h1>
+            <h1 className="text-sm font-semibold text-white/80">Configurações</h1>
           </div>
         </header>
         <div className="flex-1 flex items-center justify-center">
@@ -135,16 +146,16 @@ export default function SettingsPage({ onBack }: Props) {
       <>
         <header className="glass shrink-0 border-b border-white/5">
           <div className="px-5 h-12 flex items-center gap-3">
-            <button onClick={onBack} className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+            <button onClick={onBack} aria-label="Voltar" className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <h1 className="text-sm font-semibold text-white/80">Configuracoes</h1>
+            <h1 className="text-sm font-semibold text-white/80">Configurações</h1>
           </div>
         </header>
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-red-500 text-sm">{error || "Falha ao carregar configuracoes."}</p>
+          <p className="text-red-500 text-sm">{error || "Falha ao carregar configurações."}</p>
         </div>
       </>
     );
@@ -157,12 +168,12 @@ export default function SettingsPage({ onBack }: Props) {
       {/* Header */}
       <header className="glass shrink-0 border-b border-white/5">
         <div className="px-5 h-12 flex items-center gap-3">
-          <button onClick={onBack} className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+          <button onClick={onBack} aria-label="Voltar" className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <h1 className="text-sm font-semibold text-white/80">Configuracoes</h1>
+          <h1 className="text-sm font-semibold text-white/80">Configurações</h1>
         </div>
       </header>
 
@@ -172,7 +183,7 @@ export default function SettingsPage({ onBack }: Props) {
           {TABS.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabSwitch(tab.id)}
               className={`w-full text-left px-3 py-2 rounded-lg text-[12px] transition-all border-0 cursor-pointer bg-transparent ${
                 activeTab === tab.id
                   ? "text-white/70 bg-white/5 font-medium"
@@ -191,7 +202,7 @@ export default function SettingsPage({ onBack }: Props) {
             <div className="space-y-5">
               <h2 className="text-[10px] font-bold text-white/25 uppercase tracking-[0.2em] mb-4">Geral</h2>
               <div>
-                <label className="block text-[12px] text-white/50 mb-2">Diretorio de gravacoes</label>
+                <label className="block text-[12px] text-white/50 mb-2">Diretório de gravações</label>
                 <input
                   type="text"
                   className={inputCls}
@@ -205,7 +216,7 @@ export default function SettingsPage({ onBack }: Props) {
                 />
               </div>
               <div>
-                <label className="block text-[12px] text-white/50 mb-2">Nome automatico</label>
+                <label className="block text-[12px] text-white/50 mb-2">Nome automático</label>
                 <input
                   type="text"
                   className={inputCls}
@@ -217,7 +228,7 @@ export default function SettingsPage({ onBack }: Props) {
                     }))
                   }
                 />
-                <p className="text-[10px] text-white/15 mt-1.5">Variaveis disponiveis: {"{date}"}, {"{time}"}</p>
+                <p className="text-[10px] text-white/15 mt-1.5">Variáveis disponíveis: {"{date}"}, {"{time}"}</p>
               </div>
               <div className="flex items-center justify-between py-2">
                 <div>
@@ -257,7 +268,7 @@ export default function SettingsPage({ onBack }: Props) {
           {/* Video */}
           {activeTab === "video" && (
             <div className="space-y-5">
-              <h2 className="text-[10px] font-bold text-white/25 uppercase tracking-[0.2em] mb-4">Video</h2>
+              <h2 className="text-[10px] font-bold text-white/25 uppercase tracking-[0.2em] mb-4">Vídeo</h2>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[12px] text-white/50 mb-2">Codec</label>
@@ -313,13 +324,13 @@ export default function SettingsPage({ onBack }: Props) {
                     onChange={(e) =>
                       update((s) => ({
                         ...s,
-                        video: { ...s.video, fps: Number(e.target.value) },
+                        video: { ...s.video, fps: Number(e.target.value) || s.video.fps },
                       }))
                     }
                   />
                 </div>
                 <div>
-                  <label className="block text-[12px] text-white/50 mb-2">Resolucao</label>
+                  <label className="block text-[12px] text-white/50 mb-2">Resolução</label>
                   <select
                     className={selectCls}
                     value={settings.video.resolution}
@@ -346,7 +357,7 @@ export default function SettingsPage({ onBack }: Props) {
                     onChange={(e) =>
                       update((s) => ({
                         ...s,
-                        video: { ...s.video, bitrate: Number(e.target.value) },
+                        video: { ...s.video, bitrate: Number(e.target.value) || s.video.bitrate },
                       }))
                     }
                   />
@@ -386,7 +397,7 @@ export default function SettingsPage({ onBack }: Props) {
           {/* Audio */}
           {activeTab === "audio" && (
             <div className="space-y-5">
-              <h2 className="text-[10px] font-bold text-white/25 uppercase tracking-[0.2em] mb-4">Audio</h2>
+              <h2 className="text-[10px] font-bold text-white/25 uppercase tracking-[0.2em] mb-4">Áudio</h2>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[12px] text-white/50 mb-2">Codec</label>
@@ -414,7 +425,7 @@ export default function SettingsPage({ onBack }: Props) {
                     onChange={(e) =>
                       update((s) => ({
                         ...s,
-                        audio: { ...s.audio, bitrate: Number(e.target.value) },
+                        audio: { ...s.audio, bitrate: Number(e.target.value) || s.audio.bitrate },
                       }))
                     }
                   />
@@ -434,10 +445,10 @@ export default function SettingsPage({ onBack }: Props) {
             </div>
           )}
 
-          {/* Transcricao */}
+          {/* Transcrição */}
           {activeTab === "trans" && (
             <div className="space-y-5">
-              <h2 className="text-[10px] font-bold text-white/25 uppercase tracking-[0.2em] mb-4">Transcricao</h2>
+              <h2 className="text-[10px] font-bold text-white/25 uppercase tracking-[0.2em] mb-4">Transcrição</h2>
               <div className="flex items-center justify-between">
                 <span className="text-[12px] text-white/50">Provedor</span>
                 <div className="flex bg-white/[0.03] rounded-xl p-1 border border-white/5">
@@ -709,7 +720,7 @@ export default function SettingsPage({ onBack }: Props) {
                     onChange={(e) =>
                       update((s) => ({
                         ...s,
-                        rag: { ...s.rag, chunk_size: Number(e.target.value) },
+                        rag: { ...s.rag, chunk_size: Number(e.target.value) || s.rag.chunk_size },
                       }))
                     }
                   />
@@ -723,7 +734,7 @@ export default function SettingsPage({ onBack }: Props) {
                     onChange={(e) =>
                       update((s) => ({
                         ...s,
-                        rag: { ...s.rag, top_k: Number(e.target.value) },
+                        rag: { ...s.rag, top_k: Number(e.target.value) || s.rag.top_k },
                       }))
                     }
                   />

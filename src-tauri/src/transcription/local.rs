@@ -36,14 +36,16 @@ impl LocalProvider {
                 let max = (1i64 << (spec.bits_per_sample - 1)) as f32;
                 reader
                     .into_samples::<i32>()
-                    .filter_map(|s| s.ok())
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| format!("Failed to read WAV samples: {e}"))?
+                    .into_iter()
                     .map(|s| s as f32 / max)
                     .collect()
             }
             hound::SampleFormat::Float => reader
                 .into_samples::<f32>()
-                .filter_map(|s| s.ok())
-                .collect(),
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| format!("Failed to read WAV samples: {e}"))?,
         };
 
         Ok(samples)
@@ -92,6 +94,9 @@ impl TranscriptionProvider for LocalProvider {
 
         // Extract results.
         let num_segments = state.full_n_segments().map_err(|e| format!("Failed to get segment count: {e}"))?;
+        if num_segments < 0 {
+            return Err(format!("Whisper returned invalid segment count: {num_segments}"));
+        }
         let mut segments = Vec::with_capacity(num_segments as usize);
         let mut full_text = String::new();
         let mut detected_language = String::from("auto");
@@ -118,8 +123,8 @@ impl TranscriptionProvider for LocalProvider {
                 .map_err(|e| format!("Failed to get segment {i} end time: {e}"))?;
 
             // whisper-rs times are in centiseconds (hundredths of a second).
-            let seg_start = t0 as f64 / 100.0;
-            let seg_end = t1 as f64 / 100.0;
+            let seg_start = (t0 as f64 / 100.0).max(0.0);
+            let seg_end = (t1 as f64 / 100.0).max(0.0);
 
             // Extract word-level timestamps.
             let num_tokens = state
@@ -146,8 +151,8 @@ impl TranscriptionProvider for LocalProvider {
                 }
 
                 words.push(Word {
-                    start: token_data.t0 as f64 / 100.0,
-                    end: token_data.t1 as f64 / 100.0,
+                    start: (token_data.t0 as f64 / 100.0).max(0.0),
+                    end: (token_data.t1 as f64 / 100.0).max(0.0),
                     text: token_text,
                     confidence: token_data.p,
                 });

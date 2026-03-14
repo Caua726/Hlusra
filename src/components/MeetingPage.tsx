@@ -44,7 +44,7 @@ const TRANSCRIPTION_BADGE: Record<string, { label: string; cls: string }> = {
 };
 
 const CHAT_BADGE: Record<string, { label: string; cls: string }> = {
-  not_indexed: { label: "Nao indexado", cls: "bg-white/5 text-white/30" },
+  not_indexed: { label: "Não indexado", cls: "bg-white/5 text-white/30" },
   indexing: { label: "Indexando", cls: "bg-blue-500/10 text-blue-400" },
   ready: { label: "Chat pronto", cls: "bg-emerald-500/10 text-emerald-400" },
   failed: { label: "Chat falhou", cls: "bg-red-500/10 text-red-400" },
@@ -60,12 +60,15 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [mediaBlobUrl, setMediaBlobUrl] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const savingTitleRef = useRef(false);
   const mediaElRef = useRef<HTMLMediaElement | null>(null);
   const setMediaRef = useCallback((el: HTMLMediaElement | null) => {
     mediaElRef.current = el;
   }, []);
 
   const loadMeeting = useCallback(async () => {
+    setError(null);
     try {
       const data = await getMeeting(meetingId);
       setMeeting(data);
@@ -105,8 +108,19 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
     return () => {
       revoked = true;
       if (url) URL.revokeObjectURL(url);
+      setMediaBlobUrl(null);
     };
   }, [meeting?.id, meeting?.media_status]);
+
+  // Escape key handler for delete modal
+  useEffect(() => {
+    if (!showDeleteConfirm) return;
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setShowDeleteConfirm(false);
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [showDeleteConfirm]);
 
   function handleSeek(time: number) {
     if (mediaElRef.current) {
@@ -116,11 +130,13 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
   }
 
   async function handleSaveTitle() {
-    if (!meeting) return;
+    if (!meeting || savingTitleRef.current) return;
+    savingTitleRef.current = true;
     const trimmed = titleDraft.trim();
     if (!trimmed || trimmed === meeting.title) {
       setEditingTitle(false);
       setTitleDraft(meeting.title);
+      savingTitleRef.current = false;
       return;
     }
     try {
@@ -129,6 +145,8 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
       setEditingTitle(false);
     } catch (e) {
       setActionError(formatError(e));
+    } finally {
+      savingTitleRef.current = false;
     }
   }
 
@@ -210,7 +228,7 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
       <>
         <header className="glass shrink-0 border-b border-white/5">
           <div className="px-5 h-12 flex items-center gap-3">
-            <button onClick={onBack} className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+            <button onClick={onBack} aria-label="Voltar" className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
               </svg>
@@ -219,7 +237,7 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
           </div>
         </header>
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-red-500 text-sm">{error || "Reuniao nao encontrada."}</p>
+          <p className="text-red-500 text-sm">{error || "Reunião não encontrada."}</p>
         </div>
       </>
     );
@@ -234,7 +252,7 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
       <header className="glass shrink-0 border-b border-white/5">
         <div className="px-5 h-12 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={onBack} className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+            <button onClick={onBack} aria-label="Voltar" className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
               </svg>
@@ -252,6 +270,9 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
               <h1
                 className="text-sm font-semibold text-white/80 group cursor-pointer flex items-center gap-1.5"
                 onClick={() => setEditingTitle(true)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditingTitle(true); } }}
+                tabIndex={0}
+                role="button"
                 title="Clique para editar"
               >
                 {meeting.title}
@@ -265,6 +286,7 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
             <button
               onClick={() => onExport(getMeetingContext())}
               disabled={actionBusy}
+              aria-label="Exportar reunião"
               className="glass-input px-3 py-1.5 text-[10px] rounded-lg text-white/35 hover:text-white/60 transition-all cursor-pointer disabled:opacity-40"
             >
               Exportar
@@ -272,6 +294,7 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
             <button
               onClick={() => setShowDeleteConfirm(true)}
               disabled={actionBusy}
+              aria-label="Excluir reunião"
               className="px-3 py-1.5 text-[10px] rounded-lg text-red-400/50 hover:text-red-400 hover:bg-red-500/10 border border-white/5 hover:border-red-500/20 transition-all bg-transparent cursor-pointer disabled:opacity-40"
             >
               Excluir
@@ -283,18 +306,25 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {/* Info card */}
-        <div className="glass-card rounded-2xl p-5 stagger">
+        <div className="glass-card rounded-2xl p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              {/* Play button */}
+              {/* Play/Pause button */}
               {meeting.media_status === "present" && mediaBlobUrl && (
                 <button
                   onClick={() => { if (mediaElRef.current) mediaElRef.current.paused ? mediaElRef.current.play() : mediaElRef.current.pause(); }}
+                  aria-label={isPlaying ? "Pausar" : "Reproduzir"}
                   className="w-12 h-12 rounded-xl glass-heavy flex items-center justify-center hover:scale-105 transition-all active:scale-95 group border-0 cursor-pointer"
                 >
-                  <svg className="w-5 h-5 text-white/40 ml-0.5 group-hover:text-brand-400 transition-colors" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
+                  {isPlaying ? (
+                    <svg className="w-5 h-5 text-white/40 group-hover:text-brand-400 transition-colors" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 text-white/40 ml-0.5 group-hover:text-brand-400 transition-colors" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  )}
                 </button>
               )}
               <div>
@@ -302,7 +332,7 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
                   <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${
                     meeting.has_video ? "bg-blue-500/15 text-blue-400" : "bg-white/6 text-white/40"
                   }`}>
-                    {meeting.has_video ? "Video" : "Audio"}
+                    {meeting.has_video ? "Vídeo" : "Áudio"}
                   </span>
                   <span>{formatDate(meeting.created_at)}</span>
                 </div>
@@ -332,9 +362,19 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
         {meeting.media_status === "present" && mediaBlobUrl && (
           <div className="hidden">
             {meeting.has_video ? (
-              <video ref={setMediaRef} src={mediaBlobUrl} />
+              <video
+                ref={setMediaRef}
+                src={mediaBlobUrl}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+              />
             ) : (
-              <audio ref={setMediaRef} src={mediaBlobUrl} />
+              <audio
+                ref={setMediaRef}
+                src={mediaBlobUrl}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+              />
             )}
           </div>
         )}
@@ -351,7 +391,7 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
         {/* Chat button */}
         <button
           onClick={() => onChat(getMeetingContext())}
-          className="w-full glass-card rounded-2xl p-4 flex items-center justify-between group hover:border-white/15 hover:bg-white/[0.05] transition-all duration-300 cursor-pointer stagger bg-transparent"
+          className="w-full glass-card rounded-2xl p-4 flex items-center justify-between group hover:border-white/15 hover:bg-white/[0.05] transition-all duration-300 cursor-pointer bg-transparent"
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-brand-500/10 flex items-center justify-center group-hover:bg-brand-500/15 group-hover:scale-105 transition-all">
@@ -360,8 +400,8 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
               </svg>
             </div>
             <div className="text-left">
-              <h3 className="text-[13px] font-medium text-white/70 group-hover:text-white/90 transition-colors">Conversar sobre esta reuniao</h3>
-              <p className="text-[10px] text-white/25 mt-0.5">Pergunte qualquer coisa sobre o conteudo</p>
+              <h3 className="text-[13px] font-medium text-white/70 group-hover:text-white/90 transition-colors">Conversar sobre esta reunião</h3>
+              <p className="text-[10px] text-white/25 mt-0.5">Pergunte qualquer coisa sobre o conteúdo</p>
             </div>
           </div>
           <svg className="w-4 h-4 text-white/15 group-hover:text-white/40 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -370,7 +410,7 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
         </button>
 
         {/* Actions */}
-        <div className="flex gap-2 stagger">
+        <div className="flex gap-2">
           {meeting.transcription_status === "done" && (
             <button
               onClick={handleRetranscribe}
@@ -398,7 +438,7 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] backdrop-blur-sm" onClick={() => setShowDeleteConfirm(false)}>
           <div className="glass-heavy rounded-2xl p-7 max-w-[380px] w-[90%] text-center" onClick={(e) => e.stopPropagation()}>
-            <h3 className="mb-3 font-semibold text-white/80">Confirmar exclusao</h3>
+            <h3 className="mb-3 font-semibold text-white/80">Confirmar exclusão</h3>
             <p className="text-white/30 text-sm mb-5">O que deseja excluir?</p>
             <div className="flex gap-3 justify-center">
               <button
@@ -413,7 +453,7 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
                 onClick={() => handleDelete("media_only")}
                 disabled={actionBusy}
               >
-                {actionBusy ? "Excluindo..." : "Apagar so midia"}
+                {actionBusy ? "Excluindo..." : "Apagar só mídia"}
               </button>
               <button
                 className="px-5 py-2 rounded-xl text-[11px] text-red-400/70 hover:text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-all cursor-pointer bg-transparent disabled:opacity-40"
