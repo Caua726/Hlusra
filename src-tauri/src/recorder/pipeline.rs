@@ -32,7 +32,6 @@ impl RecordingPipeline {
         let mic_queue = gst::ElementFactory::make("queue").name("mic_queue").build().map_err(|e| e.to_string())?;
         let mic_convert = gst::ElementFactory::make("audioconvert").name("mic_convert").build().map_err(|e| e.to_string())?;
         let mic_enc = encode::create_audio_encoder(audio_config)?;
-        mic_enc.set_name("mic_enc").ok();
 
         // System audio source
         let sys_src = gst::ElementFactory::make("pipewiresrc")
@@ -43,7 +42,6 @@ impl RecordingPipeline {
         let sys_queue = gst::ElementFactory::make("queue").name("sys_queue").build().map_err(|e| e.to_string())?;
         let sys_convert = gst::ElementFactory::make("audioconvert").name("sys_convert").build().map_err(|e| e.to_string())?;
         let sys_enc = encode::create_audio_encoder(audio_config)?;
-        sys_enc.set_name("sys_enc").ok();
 
         // Muxer + sink
         let mux = gst::ElementFactory::make("matroskamux").name("mux").build().map_err(|e| e.to_string())?;
@@ -105,7 +103,6 @@ impl RecordingPipeline {
         let (video_enc, _actual_backend) = encode::create_video_encoder_with_fallback(
             video_config.backend, video_config.codec, video_config,
         )?;
-        video_enc.set_name("video_enc").ok();
 
         // Audio sources (same as audio-only)
         let mic_src = gst::ElementFactory::make("pipewiresrc").name("mic_src").build().map_err(|e| e.to_string())?;

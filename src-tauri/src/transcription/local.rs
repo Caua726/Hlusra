@@ -98,8 +98,8 @@ impl TranscriptionProvider for LocalProvider {
 
         // Try to get the detected language from the first segment.
         if num_segments > 0 {
-            if let Ok(lang_id) = state.full_lang_id() {
-                if let Ok(lang) = whisper_rs::get_lang_str(lang_id) {
+            if let Ok(lang_id) = state.full_lang_id_from_state() {
+                if let Some(lang) = whisper_rs::get_lang_str(lang_id) {
                     detected_language = lang.to_string();
                 }
             }
@@ -133,7 +133,7 @@ impl TranscriptionProvider for LocalProvider {
                     .map_err(|e| format!("Failed to get token data ({i},{j}): {e}"))?;
 
                 let token_text = state
-                    .full_get_token_text(&ctx, i, j)
+                    .full_get_token_text(i, j)
                     .map_err(|e| format!("Failed to get token text ({i},{j}): {e}"))?;
 
                 // Skip special tokens (they start with '[' or are empty/whitespace-only).
