@@ -15,9 +15,7 @@
         "label": "main",
         "title": "Hlusra",
         "width": 800,
-        "height": 400,
-        "decorations": false,
-        "resizable": false
+        "height": 400
       }
     ]
   }
