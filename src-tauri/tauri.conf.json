@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicedoc/tauri/refs/heads/dev/crates/tauri-schema-generator/schemas/config.schema.json",
+  "productName": "Hlusra",
+  "version": "0.1.0",
+  "identifier": "com.hlusra.app",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Hlusra",
+        "width": 1024,
+        "height": 768,
+        "minWidth": 800,
+        "minHeight": 600
+      }
+    ]
+  }
+}
