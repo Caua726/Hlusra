@@ -1,5 +1,5 @@
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{Manager, State};
 use crate::library::api::Library;
 use crate::library::types::{RecordingInfo, TrackInfo};
 use crate::recorder::capture::ScreenCapture;
@@ -25,6 +25,7 @@ impl RecorderState {
 
 #[tauri::command]
 pub async fn start_recording(
+    app: tauri::AppHandle,
     with_video: bool,
     library: State<'_, Library>,
     recorder: State<'_, RecorderState>,
@@ -110,6 +111,19 @@ pub async fn start_recording(
     })?;
     eprintln!("[recorder] pipeline started successfully");
 
+    // Open floating recording widget window
+    let _ = tauri::WebviewWindowBuilder::new(
+        &app,
+        "widget",
+        tauri::WebviewUrl::App("widget.html".into()),
+    )
+    .title("Hlusra - Gravando")
+    .inner_size(200.0, 80.0)
+    .always_on_top(true)
+    .decorations(false)
+    .resizable(false)
+    .build();
+
     // I23: Lock pipeline first, then meeting_id. If meeting_id lock fails,
     // take the pipeline back and stop it to avoid inconsistent state.
     *recorder.pipeline.lock().map_err(|_| "Recorder lock poisoned".to_string())? = Some(pipeline);
@@ -131,10 +145,16 @@ pub async fn start_recording(
 
 #[tauri::command]
 pub async fn stop_recording(
+    app: tauri::AppHandle,
     library: State<'_, Library>,
     recorder: State<'_, RecorderState>,
 ) -> Result<crate::library::types::Meeting, String> {
     eprintln!("[recorder] stop_recording called");
+
+    // Close the floating recording widget window
+    if let Some(w) = app.get_webview_window("widget") {
+        let _ = w.close();
+    }
     let pipeline = {
         let mut pipeline_lock = recorder.pipeline.lock().map_err(|_| "Recorder lock poisoned".to_string())?;
         pipeline_lock.take().ok_or("Nenhuma gravação ativa")?

@@ -1,16 +1,9 @@
 import { MeetingSummary } from "../lib/api";
-import { formatDuration } from "../lib/format";
+import { formatDuration, formatSize } from "../lib/format";
 
 interface Props {
   meeting: MeetingSummary;
   onClick: (id: string) => void;
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
 const TRANSCRIPTION_BADGE: Record<string, { label: string; cls: string }> = {

@@ -22,7 +22,7 @@ impl RecordingPipeline {
         output_path: PathBuf,
         audio_config: &AudioConfig,
     ) -> Result<Self, String> {
-        let pipeline = gst::Pipeline::new();
+        let pipeline = gst::Pipeline::builder().name("hlusra-audio").build();
 
         // Mic source — captures from PipeWire default input device
         let mic_src = gst::ElementFactory::make("pipewiresrc")
@@ -76,7 +76,7 @@ impl RecordingPipeline {
         video_config: &VideoConfig,
         audio_config: &AudioConfig,
     ) -> Result<Self, String> {
-        let pipeline = gst::Pipeline::new();
+        let pipeline = gst::Pipeline::builder().name("hlusra-video").build();
 
         // Screen source
         let screen_src = gst::ElementFactory::make("pipewiresrc")
@@ -97,6 +97,7 @@ impl RecordingPipeline {
 
         // Scale and constrain video to configured width/height/fps
         let videoscale = gst::ElementFactory::make("videoscale").name("videoscale").build().map_err(|e| e.to_string())?;
+        let videorate = gst::ElementFactory::make("videorate").name("videorate").build().map_err(|e| e.to_string())?;
         let video_caps = gst::Caps::builder("video/x-raw")
             .field("width", video_config.width as i32)
             .field("height", video_config.height as i32)
@@ -161,14 +162,14 @@ impl RecordingPipeline {
             .map_err(|e| e.to_string())?;
 
         pipeline.add_many(&[
-            &screen_src, &video_queue, &videoconvert, &videoscale, &capsfilter, &video_enc,
+            &screen_src, &video_queue, &videoconvert, &videoscale, &videorate, &capsfilter, &video_enc,
             &mic_src, &mic_queue, &mic_convert, &mic_resample, &mic_enc,
             &sys_src, &sys_queue, &sys_convert, &sys_resample, &sys_enc,
             &mux, &filesink,
         ]).map_err(|e| e.to_string())?;
 
-        // Link video: pipewiresrc -> queue -> videoconvert -> videoscale -> capsfilter -> encoder -> mux
-        gst::Element::link_many(&[&screen_src, &video_queue, &videoconvert, &videoscale, &capsfilter, &video_enc])
+        // Link video: pipewiresrc -> queue -> videoconvert -> videoscale -> videorate -> capsfilter -> encoder -> mux
+        gst::Element::link_many(&[&screen_src, &video_queue, &videoconvert, &videoscale, &videorate, &capsfilter, &video_enc])
             .map_err(|e| format!("Link video: {}", e))?;
         video_enc.link(&mux).map_err(|e| format!("Link video->mux: {}", e))?;
 
@@ -197,6 +198,21 @@ impl RecordingPipeline {
         self.start_time = Instant::now();
         self.pipeline.set_state(gst::State::Playing)
             .map_err(|e| format!("Failed to start pipeline: {:?}", e))?;
+
+        // Install a bus watch to log GStreamer errors during recording
+        if let Some(bus) = self.pipeline.bus() {
+            let _ = bus.add_watch(|_bus, msg| {
+                if let gst::MessageView::Error(e) = msg.view() {
+                    eprintln!(
+                        "[hlusra-pipeline] GStreamer error: {} (debug: {})",
+                        e.error(),
+                        e.debug().unwrap_or_default()
+                    );
+                }
+                gst::glib::ControlFlow::Continue
+            });
+        }
+
         Ok(())
     }
 

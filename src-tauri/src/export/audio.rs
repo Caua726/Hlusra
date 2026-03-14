@@ -160,23 +160,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_resolve_output_save() {
-        let dir = PathBuf::from("/meetings/abc123");
-        let path = resolve_output_path(&dir, "audio.mp3", &SaveMode::Save);
-        assert_eq!(path, PathBuf::from("/meetings/abc123/audio.mp3"));
-    }
-
-    #[test]
-    fn test_resolve_output_save_as() {
-        let dir = PathBuf::from("/meetings/abc123");
-        let save_as = SaveMode::SaveAs {
-            path: PathBuf::from("/home/user/export.wav"),
-        };
-        let path = resolve_output_path(&dir, "audio.wav", &save_as);
-        assert_eq!(path, PathBuf::from("/home/user/export.wav"));
-    }
-
-    #[test]
     fn test_build_mixdown_filter_2_streams() {
         let filter = build_mixdown_filter(2);
         assert_eq!(

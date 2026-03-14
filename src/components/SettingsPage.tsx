@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { open as dialogOpen } from "@tauri-apps/plugin-dialog";
 import {
   getSettings,
   updateSettings,
@@ -125,6 +126,11 @@ export default function SettingsPage({ onBack }: Props) {
     try {
       await setActiveModel(name);
       setActiveModelName(name);
+      // Keep settings.transcription.model in sync with the active model
+      update((s) => ({
+        ...s,
+        transcription: { ...s.transcription, model: name },
+      }));
     } catch (e) {
       setError(formatError(e));
     }
@@ -167,7 +173,7 @@ export default function SettingsPage({ onBack }: Props) {
           </div>
         </header>
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-red-400/80 text-xs">{error || "Falha ao carregar configurações."}</p>
+          <p className="text-red-400/80 text-xs" role="alert">{error || "Falha ao carregar configurações."}</p>
         </div>
       </>
     );
@@ -215,17 +221,38 @@ export default function SettingsPage({ onBack }: Props) {
               <h2 className="text-[10px] font-bold text-white/25 uppercase tracking-[0.2em] mb-4">Geral</h2>
               <div>
                 <label className="block text-[12px] text-white/50 mb-2">Diretório de gravações</label>
-                <input
-                  type="text"
-                  className={inputCls}
-                  value={settings.general.recordings_dir}
-                  onChange={(e) =>
-                    update((s) => ({
-                      ...s,
-                      general: { ...s.general, recordings_dir: e.target.value },
-                    }))
-                  }
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    className={inputCls}
+                    value={settings.general.recordings_dir}
+                    onChange={(e) =>
+                      update((s) => ({
+                        ...s,
+                        general: { ...s.general, recordings_dir: e.target.value },
+                      }))
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="shrink-0 glass-input rounded-xl px-4 py-2.5 text-[12px] text-white/50 hover:text-white/80 transition-all cursor-pointer border-0"
+                    onClick={async () => {
+                      try {
+                        const selected = await dialogOpen({ directory: true, title: "Selecionar diretório de gravações" });
+                        if (selected && typeof selected === "string") {
+                          update((s) => ({
+                            ...s,
+                            general: { ...s.general, recordings_dir: selected },
+                          }));
+                        }
+                      } catch (e) {
+                        setError(formatError(e));
+                      }
+                    }}
+                  >
+                    Procurar
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-[12px] text-white/50 mb-2">Nome automático</label>
@@ -262,17 +289,6 @@ export default function SettingsPage({ onBack }: Props) {
                   <div className="w-10 h-[22px] rounded-full bg-white/5 border border-white/10 peer-checked:bg-brand-500/15 peer-checked:border-brand-500/40 transition-all" />
                   <div className="absolute left-[3px] top-[3px] w-4 h-4 rounded-full bg-white/20 peer-checked:bg-brand-500 peer-checked:translate-x-[18px] transition-all pointer-events-none peer-checked:shadow-[0_0_12px_rgba(244,63,94,0.6)]" />
                 </label>
-              </div>
-              <div className="pt-4 border-t border-white/5 flex items-center gap-3">
-                <button
-                  className="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-[12px] font-medium transition-all active:scale-[0.98] glow-sm border-0 cursor-pointer disabled:opacity-40"
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? "Salvando..." : "Salvar"}
-                </button>
-                {saved && <span className="text-emerald-400 text-[11px]">Salvo!</span>}
-                {error && <span className="text-red-400/80 text-xs">{error}</span>}
               </div>
             </div>
           )}
@@ -392,17 +408,6 @@ export default function SettingsPage({ onBack }: Props) {
                   </select>
                 </div>
               </div>
-              <div className="pt-4 border-t border-white/5 flex items-center gap-3">
-                <button
-                  className="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-[12px] font-medium transition-all active:scale-[0.98] glow-sm border-0 cursor-pointer disabled:opacity-40"
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? "Salvando..." : "Salvar"}
-                </button>
-                {saved && <span className="text-emerald-400 text-[11px]">Salvo!</span>}
-                {error && <span className="text-red-400/80 text-xs">{error}</span>}
-              </div>
             </div>
           )}
 
@@ -442,17 +447,6 @@ export default function SettingsPage({ onBack }: Props) {
                     }
                   />
                 </div>
-              </div>
-              <div className="pt-4 border-t border-white/5 flex items-center gap-3">
-                <button
-                  className="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-[12px] font-medium transition-all active:scale-[0.98] glow-sm border-0 cursor-pointer disabled:opacity-40"
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? "Salvando..." : "Salvar"}
-                </button>
-                {saved && <span className="text-emerald-400 text-[11px]">Salvo!</span>}
-                {error && <span className="text-red-400/80 text-xs">{error}</span>}
               </div>
             </div>
           )}
@@ -540,12 +534,14 @@ export default function SettingsPage({ onBack }: Props) {
                     <select
                       className={selectCls}
                       value={settings.transcription.model}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const name = e.target.value;
                         update((s) => ({
                           ...s,
-                          transcription: { ...s.transcription, model: e.target.value },
-                        }))
-                      }
+                          transcription: { ...s.transcription, model: name },
+                        }));
+                        setActiveModelName(name);
+                      }}
                     >
                       <option value="tiny">tiny (75 MB)</option>
                       <option value="base">base (150 MB)</option>
@@ -607,17 +603,6 @@ export default function SettingsPage({ onBack }: Props) {
                 </>
               )}
 
-              <div className="pt-4 border-t border-white/5 flex items-center gap-3">
-                <button
-                  className="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-[12px] font-medium transition-all active:scale-[0.98] glow-sm border-0 cursor-pointer disabled:opacity-40"
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? "Salvando..." : "Salvar"}
-                </button>
-                {saved && <span className="text-emerald-400 text-[11px]">Salvo!</span>}
-                {error && <span className="text-red-400/80 text-xs">{error}</span>}
-              </div>
             </div>
           )}
 
@@ -755,20 +740,22 @@ export default function SettingsPage({ onBack }: Props) {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-white/5 flex items-center gap-3">
-                <button
-                  className="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-[12px] font-medium transition-all active:scale-[0.98] glow-sm border-0 cursor-pointer disabled:opacity-40"
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? "Salvando..." : "Salvar"}
-                </button>
-                {saved && <span className="text-emerald-400 text-[11px]">Salvo!</span>}
-                {error && <span className="text-red-400/80 text-xs">{error}</span>}
-              </div>
             </div>
           )}
         </div>
+      </div>
+
+      {/* Save button (shared across all tabs) */}
+      <div className="shrink-0 border-t border-white/5 px-6 py-3 flex items-center gap-3">
+        <button
+          className="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-[12px] font-medium transition-all active:scale-[0.98] glow-sm border-0 cursor-pointer disabled:opacity-40"
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving ? "Salvando..." : "Salvar"}
+        </button>
+        {saved && <span className="text-emerald-400 text-[11px]">Salvo!</span>}
+        {error && <span className="text-red-400/80 text-xs" role="alert">{error}</span>}
       </div>
     </>
   );

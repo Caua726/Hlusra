@@ -68,6 +68,7 @@ function App() {
             {/* Gallery sidebar */}
             <button
               onClick={() => go("gallery")}
+              aria-label="Abrir galeria de reuniões"
               className="w-48 h-full glass-heavy flex flex-col items-center justify-center gap-3 cursor-pointer group hover:bg-white/[0.06] transition-all duration-300 shrink-0 border-0"
             >
               <div className="w-10 h-10 rounded-xl glass flex items-center justify-center group-hover:scale-110 transition-transform duration-300">

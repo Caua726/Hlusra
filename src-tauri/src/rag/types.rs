@@ -3,6 +3,29 @@ use serde::{Deserialize, Serialize};
 // Re-export ChatStatus from library — do NOT redefine it here.
 // Use: `use crate::library::types::ChatStatus;`
 
+/// Error response body from an OpenAI-compatible API.
+/// Shared between embeddings and chat clients.
+#[derive(Debug, Deserialize)]
+pub struct ApiErrorBody {
+    pub error: Option<ApiErrorDetail>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ApiErrorDetail {
+    pub message: Option<String>,
+}
+
+/// Extract a human-readable error message from an API error response body.
+pub fn parse_api_error(body_text: &str, status_code: u16) -> String {
+    match serde_json::from_str::<ApiErrorBody>(body_text) {
+        Ok(err_body) => err_body
+            .error
+            .and_then(|e| e.message)
+            .unwrap_or_else(|| format!("HTTP {}", status_code)),
+        Err(_) => format!("HTTP {}", status_code),
+    }
+}
+
 /// A chunk of transcript text with associated timestamps.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Chunk {

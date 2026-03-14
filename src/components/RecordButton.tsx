@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { startRecording, stopRecording, getRecordingStatus } from "../lib/api";
-import { formatTimer, formatError } from "../lib/format";
+import { formatTimer, formatSize, formatError } from "../lib/format";
 
 interface Props {
   onRecordingStart: () => void;
@@ -86,19 +86,13 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, onCanc
     }
   }
 
-  function formatSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-
   // Recording view (shown inside the recording view container)
   if (isRecordingView || recording) {
     // Error state in recording view with no active recording - show back button
     if (isRecordingView && !recording && !starting) {
       return (
         <>
-          {error && <p className="text-red-400/80 text-xs mb-4">{error}</p>}
+          {error && <p className="text-red-400/80 text-xs mb-4" role="alert">{error}</p>}
           {onCancel && (
             <button
               onClick={onCancel}
@@ -136,7 +130,7 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, onCanc
           {stopping ? "Parando..." : "Parar"}
         </button>
 
-        {error && <p className="text-red-400/80 text-xs mt-4">{error}</p>}
+        {error && <p className="text-red-400/80 text-xs mt-4" role="alert">{error}</p>}
       </>
     );
   }
@@ -186,7 +180,7 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, onCanc
         <span className="text-xs text-white/25">Gravar tela</span>
       </label>
 
-      {error && <p className="text-red-400/80 text-xs mt-4">{error}</p>}
+      {error && <p className="text-red-400/80 text-xs mt-4" role="alert">{error}</p>}
     </>
   );
 }

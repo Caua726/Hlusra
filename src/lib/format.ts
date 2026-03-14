@@ -20,6 +20,14 @@ export function formatTimer(secs: number): string {
   return [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
 }
 
+/** Human-readable file size, e.g. "12.3 MB" or "1.2 GB". */
+export function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
 /** Convert raw error to user-friendly Portuguese message. */
 export function formatError(e: unknown): string {
   const raw = String(e);

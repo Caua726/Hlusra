@@ -3,7 +3,7 @@ use std::time::Duration;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::rag::types::RagConfig;
+use crate::rag::types::{parse_api_error, RagConfig};
 
 /// Request body for the OpenAI-compatible embeddings endpoint.
 #[derive(Debug, Serialize)]
@@ -28,17 +28,6 @@ struct EmbeddingResponse {
     model: Option<String>,
     #[allow(dead_code)]
     usage: Option<serde_json::Value>,
-}
-
-/// Error response body from the API.
-#[derive(Debug, Deserialize)]
-struct ApiErrorBody {
-    error: Option<ApiErrorDetail>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ApiErrorDetail {
-    message: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -119,7 +108,7 @@ impl EmbeddingsClient {
         let response = self
             .client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
+            .bearer_auth(&self.api_key)
             .json(&body)
             .send()
             .await?;
@@ -128,13 +117,7 @@ impl EmbeddingsClient {
         if !status.is_success() {
             let status_code = status.as_u16();
             let body_text = response.text().await.unwrap_or_default();
-            let message = match serde_json::from_str::<ApiErrorBody>(&body_text) {
-                Ok(err_body) => err_body
-                    .error
-                    .and_then(|e| e.message)
-                    .unwrap_or_else(|| format!("HTTP {}", status_code)),
-                Err(_) => format!("HTTP {}", status_code),
-            };
+            let message = parse_api_error(&body_text, status_code);
             return Err(EmbeddingsError::Api {
                 status: status_code,
                 message,

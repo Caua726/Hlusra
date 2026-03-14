@@ -101,24 +101,4 @@ pub fn export_video(
     Ok(output_path)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_resolve_output_save() {
-        let dir = PathBuf::from("/meetings/abc123");
-        let path = resolve_output_path(&dir, "video.mp4", &SaveMode::Save);
-        assert_eq!(path, PathBuf::from("/meetings/abc123/video.mp4"));
-    }
-
-    #[test]
-    fn test_resolve_output_save_as() {
-        let dir = PathBuf::from("/meetings/abc123");
-        let save_as = SaveMode::SaveAs {
-            path: PathBuf::from("/home/user/meeting.mp4"),
-        };
-        let path = resolve_output_path(&dir, "video.mp4", &save_as);
-        assert_eq!(path, PathBuf::from("/home/user/meeting.mp4"));
-    }
-}
+// resolve_output_path tests are in types.rs
