@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { readFile } from "@tauri-apps/plugin-fs";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import {
   getMeeting,
   updateMeetingTitle,
@@ -92,22 +92,16 @@ export default function MeetingPage({ meetingId, onBack, onChat, onExport }: Pro
     async function loadMedia() {
       if (!meeting || meeting.media_status !== "present") return;
       const mediaPath = meeting.dir_path + "/recording.mkv";
-      try {
-        const bytes = await readFile(mediaPath);
-        if (revoked) return;
-        const mimeType = meeting.has_video ? "video/x-matroska" : "audio/x-matroska";
-        const blob = new Blob([bytes], { type: mimeType });
-        url = URL.createObjectURL(blob);
-        setMediaBlobUrl(url);
-      } catch (e) {
-        console.error("[MeetingPage] failed to load media file:", e);
+      // Use convertFileSrc for streaming — no file loaded into JS memory
+      const assetUrl = convertFileSrc(mediaPath);
+      if (!revoked) {
+        setMediaBlobUrl(assetUrl);
       }
     }
 
     loadMedia();
     return () => {
       revoked = true;
-      if (url) URL.revokeObjectURL(url);
       setMediaBlobUrl(null);
     };
   }, [meeting?.id, meeting?.media_status]);
