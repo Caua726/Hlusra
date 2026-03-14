@@ -21,6 +21,7 @@ const MIGRATIONS: &[&str] = &[
         transcription_status TEXT NOT NULL DEFAULT 'pending',
         chat_status TEXT NOT NULL DEFAULT 'not_indexed'
     );
+    CREATE INDEX IF NOT EXISTS idx_meetings_created_at ON meetings(created_at DESC);
     CREATE TABLE IF NOT EXISTS schema_version (
         version INTEGER PRIMARY KEY,
         applied_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -44,6 +45,11 @@ impl LibraryDb {
 
     pub fn open_in_memory() -> rusqlite::Result<Self> {
         let conn = Connection::open_in_memory()?;
+        conn.execute_batch(
+            "PRAGMA journal_mode = WAL;
+             PRAGMA synchronous = NORMAL;
+             PRAGMA foreign_keys = ON;"
+        )?;
         let db = LibraryDb { conn };
         db.run_migrations()?;
         Ok(db)
@@ -61,7 +67,9 @@ impl LibraryDb {
         for (i, sql) in MIGRATIONS.iter().enumerate() {
             let version = (i + 1) as u32;
             if version > current {
-                self.conn.execute_batch(sql)?;
+                let tx = self.conn.unchecked_transaction()?;
+                tx.execute_batch(sql)?;
+                tx.commit()?;
             }
         }
         Ok(())
@@ -169,6 +177,9 @@ impl LibraryDb {
 
     pub fn delete_meeting(&self, id: &str) -> rusqlite::Result<()> {
         self.conn.execute("DELETE FROM meetings WHERE id = ?1", params![id])?;
+        if self.conn.changes() < 1 {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        }
         Ok(())
     }
 

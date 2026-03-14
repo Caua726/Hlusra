@@ -110,9 +110,26 @@ impl Library {
         Ok(meeting)
     }
 
+    pub fn cancel_prepared(&self, id: &str) -> Result<()> {
+        let dir_path = self.prepared.lock()
+            .map_err(|e| {
+                eprintln!("[library] BUG-FIX: prepared mutex lock poisoned in cancel_prepared: {}", e);
+                LibraryError::Internal("prepared lock poisoned".to_string())
+            })?
+            .remove(id)
+            .ok_or(LibraryError::NotFound(format!("No prepared meeting with id {}", id)))?;
+
+        self.fs.delete_meeting_dir(&dir_path)?;
+        eprintln!("[library] cancel_prepared: removed id={}, dir={:?}", id, dir_path);
+        Ok(())
+    }
+
     pub fn get_meeting(&self, id: &str) -> Result<Meeting> {
         let db = self.db.lock().map_err(|_| LibraryError::Internal("lock poisoned".to_string()))?;
-        db.get_meeting(id).map_err(|_| LibraryError::NotFound(id.to_string()))
+        db.get_meeting(id).map_err(|e| match e {
+            rusqlite::Error::QueryReturnedNoRows => LibraryError::NotFound(id.to_string()),
+            other => LibraryError::Db(other),
+        })
     }
 
     pub fn get_meeting_detail(&self, id: &str) -> Result<MeetingDetail> {
@@ -170,12 +187,12 @@ impl Library {
 
         match mode {
             DeleteMode::Everything => {
-                self.fs.delete_meeting_dir(&meeting.dir_path)?;
                 db.delete_meeting(id)?;
+                self.fs.delete_meeting_dir(&meeting.dir_path)?;
             }
             DeleteMode::MediaOnly => {
-                self.fs.delete_media_files(&meeting.dir_path)?;
                 db.update_media_status(id, MediaStatus::Deleted)?;
+                self.fs.delete_media_files(&meeting.dir_path)?;
             }
         }
         Ok(())

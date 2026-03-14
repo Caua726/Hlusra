@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Meeting {
     pub id: String,
     pub title: String,
@@ -17,7 +17,7 @@ pub struct Meeting {
     pub chat_status: ChatStatus,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MeetingSummary {
     pub id: String,
     pub title: String,
@@ -30,7 +30,7 @@ pub struct MeetingSummary {
     pub chat_status: ChatStatus,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MeetingDetail {
     pub id: String,
     pub title: String,
@@ -46,7 +46,7 @@ pub struct MeetingDetail {
     pub transcript: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TrackInfo {
     pub index: usize,
     pub label: String,
@@ -67,25 +67,28 @@ pub struct RecordingInfo {
     pub tracks: Vec<TrackInfo>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MediaStatus {
+    #[default]
     Present,
     Deleted,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TranscriptionStatus {
+    #[default]
     Pending,
     Processing,
     Done,
     Failed,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ChatStatus {
+    #[default]
     NotIndexed,
     Indexing,
     Ready,
@@ -100,6 +103,7 @@ pub enum DeleteMode {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ArtifactKind {
     Recording,
     Thumbnail,
@@ -116,11 +120,6 @@ impl ArtifactKind {
             Self::TranscriptTxt => "transcript.txt",
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MeetingUpdate {
-    pub title: Option<String>,
 }
 
 impl MediaStatus {

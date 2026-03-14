@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import type { ChatStatus } from "./lib/api";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { motion, AnimatePresence } from "motion/react";
 import Gallery from "./components/Gallery";
@@ -14,7 +15,7 @@ type ViewKind = "home" | "recording" | "gallery" | "meeting" | "chat" | "export"
 interface MeetingCtx {
   hasVideo: boolean;
   hasTranscript: boolean;
-  chatStatus: "not_indexed" | "indexing" | "ready" | "failed";
+  chatStatus: ChatStatus;
   title: string;
 }
 
@@ -40,7 +41,9 @@ function App() {
         const win = getCurrentWindow();
         const [w, h] = HOME_VIEWS.includes(view) ? [800, 400] : [800, 600];
         await win.setSize(new LogicalSize(w, h));
-      } catch {}
+      } catch (e) {
+        console.error("[hlusra] Failed to resize window:", e);
+      }
     })();
   }, [view]);
 
@@ -73,7 +76,7 @@ function App() {
                 </svg>
               </div>
               <span className="text-xs text-white/20 group-hover:text-white/50 transition-colors">Galeria</span>
-              <span className="text-[10px] text-white/8 group-hover:text-white/15 transition-colors">reunioes</span>
+              <span className="text-[10px] text-white/8 group-hover:text-white/15 transition-colors">reuniões</span>
             </button>
           </div>
         );
@@ -86,6 +89,7 @@ function App() {
               isRecordingView
               onRecordingStart={() => {}}
               onRecordingDone={() => { galleryKey.current++; go("gallery"); }}
+              onCancel={() => go("home")}
             />
           </div>
         );
@@ -117,7 +121,7 @@ function App() {
             chatStatus={meetingCtx.chatStatus}
             meetingTitle={meetingCtx.title}
             onBack={() => go("meeting")}
-            onStatusChange={() => {}}
+            onStatusChange={(status) => setMeetingCtx((prev) => ({ ...prev, chatStatus: status }))}
           />
         );
 
@@ -134,6 +138,11 @@ function App() {
 
       case "settings":
         return <SettingsPage onBack={() => go("gallery")} />;
+
+      default: {
+        const _never: never = view;
+        throw new Error(`Unknown view: ${_never}`);
+      }
     }
   }
 
@@ -142,7 +151,7 @@ function App() {
       <AnimatePresence mode="wait">
         <motion.div
           key={view}
-          className="w-screen h-screen"
+          className="w-full h-full flex flex-col"
           initial={{ opacity: 0, scale: 0.97, y: 8 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.97, y: -8 }}

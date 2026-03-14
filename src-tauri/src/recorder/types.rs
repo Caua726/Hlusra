@@ -5,11 +5,10 @@ use serde::{Deserialize, Serialize};
 pub enum EncoderBackend {
     Vaapi,
     Cuda,
-    Vulkan,
     Software,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum VideoCodec {
     H264,
@@ -67,20 +66,17 @@ impl Default for AudioConfig {
 }
 
 impl EncoderBackend {
-    pub fn gst_element_name(&self, codec: &VideoCodec) -> &'static str {
+    pub fn gst_element_name(&self, codec: VideoCodec) -> Option<&'static str> {
         match (self, codec) {
-            (Self::Vaapi, VideoCodec::H264) => "vaapih264enc",
-            (Self::Vaapi, VideoCodec::H265) => "vaapih265enc",
-            (Self::Vaapi, VideoCodec::Av1) => "vaapiav1enc",
-            (Self::Cuda, VideoCodec::H264) => "nvh264enc",
-            (Self::Cuda, VideoCodec::H265) => "nvh265enc",
-            (Self::Cuda, VideoCodec::Av1) => "nvav1enc",
-            (Self::Vulkan, VideoCodec::H264) => "vulkanh264enc",
-            (Self::Vulkan, VideoCodec::H265) => "vulkanh265enc",
-            (Self::Vulkan, VideoCodec::Av1) => "vulkanav1enc",
-            (Self::Software, VideoCodec::H264) => "x264enc",
-            (Self::Software, VideoCodec::H265) => "x265enc",
-            (Self::Software, VideoCodec::Av1) => "svtav1enc",
+            (Self::Vaapi, VideoCodec::H264) => Some("vah264enc"),
+            (Self::Vaapi, VideoCodec::H265) => Some("vah265enc"),
+            (Self::Vaapi, VideoCodec::Av1) => Some("vaav1enc"),
+            (Self::Cuda, VideoCodec::H264) => Some("nvh264enc"),
+            (Self::Cuda, VideoCodec::H265) => Some("nvh265enc"),
+            (Self::Cuda, VideoCodec::Av1) => None,
+            (Self::Software, VideoCodec::H264) => Some("x264enc"),
+            (Self::Software, VideoCodec::H265) => Some("x265enc"),
+            (Self::Software, VideoCodec::Av1) => Some("svtav1enc"),
         }
     }
 }
@@ -91,9 +87,9 @@ mod tests {
 
     #[test]
     fn test_encoder_element_names() {
-        assert_eq!(EncoderBackend::Vaapi.gst_element_name(&VideoCodec::H265), "vaapih265enc");
-        assert_eq!(EncoderBackend::Cuda.gst_element_name(&VideoCodec::H264), "nvh264enc");
-        assert_eq!(EncoderBackend::Software.gst_element_name(&VideoCodec::Av1), "svtav1enc");
-        assert_eq!(EncoderBackend::Vulkan.gst_element_name(&VideoCodec::Av1), "vulkanav1enc");
+        assert_eq!(EncoderBackend::Vaapi.gst_element_name(VideoCodec::H265), Some("vah265enc"));
+        assert_eq!(EncoderBackend::Cuda.gst_element_name(VideoCodec::H264), Some("nvh264enc"));
+        assert_eq!(EncoderBackend::Software.gst_element_name(VideoCodec::Av1), Some("svtav1enc"));
+        assert_eq!(EncoderBackend::Cuda.gst_element_name(VideoCodec::Av1), None);
     }
 }

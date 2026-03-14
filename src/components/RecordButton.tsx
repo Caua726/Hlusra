@@ -5,10 +5,11 @@ import { formatTimer, formatError } from "../lib/format";
 interface Props {
   onRecordingStart: () => void;
   onRecordingDone: () => void;
+  onCancel?: () => void;
   isRecordingView?: boolean;
 }
 
-export default function RecordButton({ onRecordingStart, onRecordingDone, isRecordingView }: Props) {
+export default function RecordButton({ onRecordingStart, onRecordingDone, onCancel, isRecordingView }: Props) {
   const [recording, setRecording] = useState(false);
   const [withVideo, setWithVideo] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -17,6 +18,7 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, isReco
   const [starting, setStarting] = useState(false);
   const [stopping, setStopping] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mountedRef = useRef(true);
 
   const clearPoll = useCallback(() => {
     if (pollRef.current) {
@@ -26,21 +28,19 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, isReco
   }, []);
 
   useEffect(() => {
-    return clearPoll;
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      clearPoll();
+    };
   }, [clearPoll]);
-
-  // If mounted in recording view, start recording immediately
-  useEffect(() => {
-    if (isRecordingView && !recording && !starting) {
-      handleStart();
-    }
-  }, [isRecordingView]);
 
   async function handleStart() {
     setError(null);
     setStarting(true);
     try {
       await startRecording(withVideo);
+      if (!mountedRef.current) return;
       setRecording(true);
       setElapsed(0);
       setFileSize(0);
@@ -51,6 +51,7 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, isReco
       pollRef.current = setInterval(async () => {
         try {
           const status = await getRecordingStatus();
+          if (!mountedRef.current) return;
           if (status.state === "recording") {
             setElapsed(status.duration_secs);
             setFileSize(status.file_size);
@@ -60,9 +61,10 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, isReco
         }
       }, 1000);
     } catch (e) {
+      if (!mountedRef.current) return;
       setError(formatError(e));
     } finally {
-      setStarting(false);
+      if (mountedRef.current) setStarting(false);
     }
   }
 
@@ -72,13 +74,15 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, isReco
     clearPoll();
     try {
       await stopRecording();
+      if (!mountedRef.current) return;
       setRecording(false);
       setElapsed(0);
       onRecordingDone();
     } catch (e) {
+      if (!mountedRef.current) return;
       setError(formatError(e));
     } finally {
-      setStopping(false);
+      if (mountedRef.current) setStopping(false);
     }
   }
 
@@ -90,9 +94,26 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, isReco
 
   // Recording view (shown inside the recording view container)
   if (isRecordingView || recording) {
+    // Error state in recording view with no active recording - show back button
+    if (isRecordingView && !recording && !starting) {
+      return (
+        <>
+          {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              className="glass-heavy px-6 py-2.5 rounded-2xl text-sm text-white/60 hover:text-white/80 transition-all cursor-pointer border-0"
+            >
+              Voltar
+            </button>
+          )}
+        </>
+      );
+    }
+
     return (
       <>
-        <div className="flex items-center gap-2.5 mb-8 stagger">
+        <div className="flex items-center gap-2.5 mb-8">
           <div className="relative">
             <div className="w-2.5 h-2.5 rounded-full bg-brand-500 animate-pulse-rec" />
             <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-brand-500 animate-pulse-ring" />
@@ -100,17 +121,17 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, isReco
           <span className="text-[10px] font-semibold text-brand-400 uppercase tracking-[0.3em]">Gravando</span>
         </div>
 
-        <div className="text-6xl font-mono font-extralight text-white tabular-nums tracking-widest mb-3 stagger" style={{ fontVariantNumeric: "tabular-nums" }}>
+        <div className="text-6xl font-mono font-extralight text-white tabular-nums tracking-widest mb-3" style={{ fontVariantNumeric: "tabular-nums" }}>
           {formatTimer(elapsed)}
         </div>
-        <div className="text-[11px] text-white/15 mb-10 stagger">
-          {withVideo ? "Video" : "Audio"} &middot; {formatSize(fileSize)}
+        <div className="text-[11px] text-white/15 mb-10">
+          {withVideo ? "Vídeo" : "Áudio"} &middot; {formatSize(fileSize)}
         </div>
 
         <button
           onClick={handleStop}
           disabled={stopping}
-          className="rec-btn glass-heavy px-8 py-3 rounded-2xl text-sm text-white/60 hover:text-brand-400 hover:border-brand-500/30 transition-all duration-300 active:scale-95 stagger cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          className="rec-btn glass-heavy px-8 py-3 rounded-2xl text-sm text-white/60 hover:text-brand-400 hover:border-brand-500/30 transition-all duration-300 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {stopping ? "Parando..." : "Parar"}
         </button>
@@ -131,6 +152,7 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, isReco
         <button
           onClick={handleStart}
           disabled={starting}
+          aria-label="Iniciar gravação"
           className="rec-btn relative w-20 h-20 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center glow-brand cursor-pointer group border-0 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {/* Mic icon */}
@@ -145,7 +167,7 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, isReco
         disabled={starting}
         className="text-sm text-white/40 hover:text-white/70 transition-colors mb-6 cursor-pointer bg-transparent border-0 disabled:cursor-not-allowed"
       >
-        {starting ? "Iniciando..." : "Gravar reuniao"}
+        {starting ? "Iniciando..." : "Gravar reunião"}
       </button>
 
       {/* Screen toggle */}

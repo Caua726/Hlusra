@@ -1,18 +1,11 @@
 use genpdf::Element;
-use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::transcription::types::{Segment, TranscriptResult};
+
 use super::types::{resolve_output_path, SaveMode, TranscriptFormat};
 use super::ExportError;
-
-/// A segment from the transcript.json file, used for SRT and PDF generation.
-#[derive(Debug, Clone, Deserialize)]
-pub struct TranscriptSegment {
-    pub start: f64,
-    pub end: f64,
-    pub text: String,
-}
 
 /// Export a meeting's transcript to the specified format.
 ///
@@ -75,12 +68,18 @@ fn export_json(meeting_dir: &Path, output_path: &Path) -> Result<PathBuf, Export
 fn export_srt(meeting_dir: &Path, output_path: &Path) -> Result<PathBuf, ExportError> {
     let segments = load_segments(meeting_dir)?;
     let mut srt = String::new();
+    let mut index = 0u32;
 
-    for (i, segment) in segments.iter().enumerate() {
-        let index = i + 1;
+    for segment in &segments {
+        let text = segment.text.trim();
+        // Skip empty segments to avoid blank subtitles
+        if text.is_empty() {
+            continue;
+        }
+
+        index += 1;
         let start = format_srt_timestamp(segment.start);
         let end = format_srt_timestamp(segment.end);
-        let text = segment.text.trim();
 
         srt.push_str(&format!("{}\n{} --> {}\n{}\n\n", index, start, end, text));
     }
@@ -93,47 +92,45 @@ fn export_srt(meeting_dir: &Path, output_path: &Path) -> Result<PathBuf, ExportE
 fn export_pdf(meeting_dir: &Path, output_path: &Path) -> Result<PathBuf, ExportError> {
     let segments = load_segments(meeting_dir)?;
 
-    // Use genpdf's built-in default font, trying several common system paths.
-    let font_family = genpdf::fonts::from_files("", "LiberationSans", None)
-        .or_else(|_| {
-            genpdf::fonts::from_files("/usr/share/fonts/TTF", "LiberationSans", None)
-        })
-        .or_else(|_| {
-            genpdf::fonts::from_files(
-                "/usr/share/fonts/truetype/liberation",
-                "LiberationSans",
-                None,
-            )
-        })
-        .or_else(|_| {
-            genpdf::fonts::from_files(
-                "/usr/share/fonts/liberation-sans",
-                "LiberationSans",
-                None,
-            )
-        })
-        .or_else(|_| {
-            genpdf::fonts::from_files("/usr/share/fonts/TTF", "DejaVuSans", None)
-        })
-        .or_else(|_| {
-            genpdf::fonts::from_files(
-                "/usr/share/fonts/truetype/dejavu",
-                "DejaVuSans",
-                None,
-            )
-        })
-        .map_err(|_| {
-            ExportError::PdfGeneration(
-                "No suitable font found. Install liberation-fonts or dejavu-fonts.".to_string(),
-            )
-        })?;
+    // Try several common system font paths for Liberation Sans / DejaVu Sans.
+    let font_family =
+        genpdf::fonts::from_files("/usr/share/fonts/TTF", "LiberationSans", None)
+            .or_else(|_| {
+                genpdf::fonts::from_files(
+                    "/usr/share/fonts/truetype/liberation",
+                    "LiberationSans",
+                    None,
+                )
+            })
+            .or_else(|_| {
+                genpdf::fonts::from_files(
+                    "/usr/share/fonts/liberation-sans",
+                    "LiberationSans",
+                    None,
+                )
+            })
+            .or_else(|_| {
+                genpdf::fonts::from_files("/usr/share/fonts/TTF", "DejaVuSans", None)
+            })
+            .or_else(|_| {
+                genpdf::fonts::from_files(
+                    "/usr/share/fonts/truetype/dejavu",
+                    "DejaVuSans",
+                    None,
+                )
+            })
+            .map_err(|_| {
+                ExportError::PdfGeneration(
+                    "No suitable font found. Install liberation-fonts or dejavu-fonts.".to_string(),
+                )
+            })?;
 
     let mut doc = genpdf::Document::new(font_family);
     doc.set_title("Meeting Transcript");
 
-    // Set document margins
+    // Set document margins (25pt for comfortable reading)
     let mut decorator = genpdf::SimplePageDecorator::new();
-    decorator.set_margins(10);
+    decorator.set_margins(25);
     doc.set_page_decorator(decorator);
 
     // Title
@@ -144,6 +141,12 @@ fn export_pdf(meeting_dir: &Path, output_path: &Path) -> Result<PathBuf, ExportE
 
     // Transcript segments
     for segment in &segments {
+        let text = segment.text.trim();
+        // Skip empty segments
+        if text.is_empty() {
+            continue;
+        }
+
         let timestamp = format!(
             "[{} - {}]",
             format_readable_timestamp(segment.start),
@@ -154,7 +157,7 @@ fn export_pdf(meeting_dir: &Path, output_path: &Path) -> Result<PathBuf, ExportE
             genpdf::elements::Paragraph::new(timestamp)
                 .styled(genpdf::style::Style::new().bold().with_font_size(9)),
         );
-        doc.push(genpdf::elements::Paragraph::new(segment.text.trim()));
+        doc.push(genpdf::elements::Paragraph::new(text));
         doc.push(genpdf::elements::Break::new(0.5));
     }
 
@@ -164,41 +167,28 @@ fn export_pdf(meeting_dir: &Path, output_path: &Path) -> Result<PathBuf, ExportE
     Ok(output_path.to_path_buf())
 }
 
-/// Wrapper for deserializing the top-level transcript.json structure.
-/// The file contains `{ "language": "...", "segments": [...], "full_text": "..." }`,
-/// NOT a bare array of segments.
-#[derive(Debug, Deserialize)]
-struct TranscriptFile {
-    #[allow(dead_code)]
-    language: Option<String>,
-    segments: Vec<TranscriptSegment>,
-    #[allow(dead_code)]
-    full_text: Option<String>,
-}
-
 /// Load transcript segments from transcript.json.
-fn load_segments(meeting_dir: &Path) -> Result<Vec<TranscriptSegment>, ExportError> {
+///
+/// The file contains `{ "language": "...", "segments": [...], "full_text": "..." }`,
+/// which maps to `TranscriptResult` from the transcription module.
+fn load_segments(meeting_dir: &Path) -> Result<Vec<Segment>, ExportError> {
     let json_path = meeting_dir.join("transcript.json");
     if !json_path.exists() {
         return Err(ExportError::SourceNotFound(json_path));
     }
 
     let content = fs::read_to_string(&json_path)?;
-    // BUG FIX: transcript.json is a TranscriptResult object { language, segments, full_text },
-    // not a bare Vec<TranscriptSegment>. Deserializing as Vec would always fail with a
-    // serde error at runtime.
-    let transcript: TranscriptFile = serde_json::from_str(&content)
-        .map_err(|e| {
-            eprintln!("[export] BUG-FIX: failed to parse transcript.json as TranscriptFile: {}", e);
-            ExportError::InvalidTranscript(e.to_string())
-        })?;
-    eprintln!("[export] load_segments: parsed {} segments from transcript.json", transcript.segments.len());
+    let transcript: TranscriptResult = serde_json::from_str(&content)
+        .map_err(|e| ExportError::InvalidTranscript(e.to_string()))?;
     Ok(transcript.segments)
 }
 
 /// Format seconds as SRT timestamp: HH:MM:SS,mmm
+///
+/// Negative timestamps are clamped to zero to avoid malformed output.
 fn format_srt_timestamp(seconds: f64) -> String {
-    let total_ms = (seconds * 1000.0).round() as u64;
+    let clamped = seconds.max(0.0);
+    let total_ms = (clamped * 1000.0).round() as u64;
     let ms = total_ms % 1000;
     let total_secs = total_ms / 1000;
     let secs = total_secs % 60;
@@ -210,8 +200,11 @@ fn format_srt_timestamp(seconds: f64) -> String {
 }
 
 /// Format seconds as readable timestamp: HH:MM:SS
+///
+/// Negative timestamps are clamped to zero.
 fn format_readable_timestamp(seconds: f64) -> String {
-    let total_secs = seconds.round() as u64;
+    let clamped = seconds.max(0.0);
+    let total_secs = clamped.round() as u64;
     let secs = total_secs % 60;
     let total_mins = total_secs / 60;
     let mins = total_mins % 60;
@@ -234,10 +227,22 @@ mod tests {
     }
 
     #[test]
+    fn test_format_srt_timestamp_negative() {
+        // Negative timestamps should clamp to zero
+        assert_eq!(format_srt_timestamp(-1.0), "00:00:00,000");
+        assert_eq!(format_srt_timestamp(-0.5), "00:00:00,000");
+    }
+
+    #[test]
     fn test_format_readable_timestamp() {
         assert_eq!(format_readable_timestamp(0.0), "00:00:00");
         assert_eq!(format_readable_timestamp(90.0), "00:01:30");
         assert_eq!(format_readable_timestamp(3661.0), "01:01:01");
+    }
+
+    #[test]
+    fn test_format_readable_timestamp_negative() {
+        assert_eq!(format_readable_timestamp(-5.0), "00:00:00");
     }
 
     #[test]

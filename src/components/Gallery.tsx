@@ -59,7 +59,7 @@ export default function Gallery({ onSelectMeeting, onBack, onSettings }: Props) 
               </svg>
             </button>
             <h1 className="text-sm font-semibold text-white/80">Galeria</h1>
-            <span className="text-[10px] text-white/20">{meetings.length} reunioes</span>
+            <span className="text-[10px] text-white/20">{meetings.length} reuniões</span>
           </div>
           <div className="relative">
             <input
@@ -83,7 +83,7 @@ export default function Gallery({ onSelectMeeting, onBack, onSettings }: Props) 
             <div className="w-6 h-6 border-[3px] border-white/10 border-t-brand-500 rounded-full animate-[spin_0.7s_linear_infinite]" />
           </div>
         ) : error ? (
-          <div className="text-center p-8 flex flex-col items-center gap-4">
+          <div className="text-center p-8 flex flex-col items-center gap-4" role="alert">
             <p className="text-red-500 text-sm">{error}</p>
             <button
               className="glass-heavy px-4 py-2 text-[11px] rounded-xl text-white/40 hover:text-white/70 transition-all cursor-pointer border-0"
@@ -95,7 +95,7 @@ export default function Gallery({ onSelectMeeting, onBack, onSettings }: Props) 
         ) : filtered.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <p className="text-white/20 text-sm">
-              {search ? "Nenhuma reuniao encontrada." : "Nenhuma reuniao gravada ainda."}
+              {search ? "Nenhuma reunião encontrada." : "Nenhuma reunião gravada ainda."}
             </p>
           </div>
         ) : (
@@ -111,7 +111,7 @@ export default function Gallery({ onSelectMeeting, onBack, onSettings }: Props) 
       <footer className="glass shrink-0 border-t border-white/5">
         <div className="px-5 h-10 flex items-center justify-between">
           <span className="text-[10px] text-white/15">
-            {meetings.length} reunioes &middot; {formatTotalSize(meetings)}
+            {meetings.length} reuniões &middot; {formatTotalSize(meetings)}
           </span>
           <button
             onClick={onSettings}

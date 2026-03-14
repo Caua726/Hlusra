@@ -36,7 +36,10 @@ export function formatError(e: unknown): string {
   if (raw.includes("No active recording")) return "Nenhuma gravação ativa.";
   if (raw.includes("not configured")) return "Configure as chaves de API nas Configurações.";
   if (raw.includes("not found") || raw.includes("NotFound")) return "Reunião não encontrada.";
-  if (raw.includes("ffmpeg")) return "FFmpeg não encontrado. Instale com: sudo pacman -S ffmpeg";
+  if (raw.toLowerCase().includes("ffmpeg")) return "FFmpeg não encontrado. Instale com: sudo pacman -S ffmpeg";
+  if (raw.includes("DB error") || raw.includes("Database")) return "Erro no banco de dados. Reinicie o Hlusra.";
+  if (raw.includes("panicked")) return "Erro interno. Reinicie o Hlusra.";
+  if (raw.includes("No meeting ID")) return "Nenhuma reunião selecionada.";
   if (raw.includes("whisper") || raw.includes("model")) return "Erro no modelo de transcrição. Verifique o modelo selecionado.";
   if (raw.includes("network") || raw.includes("reqwest")) return "Erro de rede. Verifique sua conexão.";
   if (raw.includes("permission") || raw.includes("denied")) return "Permissão negada. Verifique as permissões do diretório.";

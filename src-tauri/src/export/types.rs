@@ -23,10 +23,10 @@ impl AudioFormat {
     }
 
     /// Whether this format requires mixing multiple tracks into a single mono/stereo stream.
+    /// Opus also requires mixdown because the `.opus` container cannot hold multi-track audio.
     pub fn requires_mixdown(&self) -> bool {
         match self {
-            Self::Mp3 | Self::Wav | Self::Ogg => true,
-            Self::Opus => false,
+            Self::Mp3 | Self::Wav | Self::Ogg | Self::Opus => true,
         }
     }
 }
@@ -64,6 +64,17 @@ impl VideoFormat {
             Self::Mp4H264 | Self::Mp4H265 => "mp4",
             Self::MkvH264 | Self::MkvH265 => "matroska",
         }
+    }
+
+    /// Whether this format targets the MP4 container.
+    pub fn is_mp4(&self) -> bool {
+        matches!(self, Self::Mp4H264 | Self::Mp4H265)
+    }
+
+    /// Whether this format requires transcoding (source codec != target codec).
+    /// Source is assumed to be H.265.
+    pub fn needs_transcode(&self) -> bool {
+        matches!(self, Self::Mp4H264 | Self::MkvH264)
     }
 }
 
@@ -127,7 +138,8 @@ mod tests {
         assert!(AudioFormat::Mp3.requires_mixdown());
         assert!(AudioFormat::Wav.requires_mixdown());
         assert!(AudioFormat::Ogg.requires_mixdown());
-        assert!(!AudioFormat::Opus.requires_mixdown());
+        // Opus also requires mixdown (.opus container can't hold multi-track)
+        assert!(AudioFormat::Opus.requires_mixdown());
     }
 
     #[test]
@@ -136,6 +148,14 @@ mod tests {
         assert_eq!(VideoFormat::Mp4H264.codec_name(), "libx264");
         assert_eq!(VideoFormat::MkvH265.extension(), "mkv");
         assert_eq!(VideoFormat::MkvH265.codec_name(), "libx265");
+    }
+
+    #[test]
+    fn test_video_is_mp4() {
+        assert!(VideoFormat::Mp4H264.is_mp4());
+        assert!(VideoFormat::Mp4H265.is_mp4());
+        assert!(!VideoFormat::MkvH264.is_mp4());
+        assert!(!VideoFormat::MkvH265.is_mp4());
     }
 
     #[test]

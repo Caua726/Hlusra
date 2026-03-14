@@ -69,6 +69,17 @@ impl RagConfig {
             top_k: settings.top_k as usize,
         }
     }
+
+    /// Validate that the configuration has all required URLs set.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.embeddings_url.is_empty() {
+            return Err("Embeddings URL is not configured".to_string());
+        }
+        if self.chat_url.is_empty() {
+            return Err("Chat URL is not configured".to_string());
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]

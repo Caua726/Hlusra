@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
@@ -85,7 +87,10 @@ impl ChatClient {
     /// Create a new client from the RAG configuration.
     pub fn new(config: &RagConfig) -> Self {
         Self {
-            client: Client::new(),
+            client: Client::builder()
+                .timeout(Duration::from_secs(120))
+                .build()
+                .unwrap_or_else(|_| Client::new()),
             url: config.chat_url.clone(),
             api_key: config.chat_api_key.clone(),
             model: config.chat_model.clone(),
@@ -110,7 +115,6 @@ impl ChatClient {
             .client
             .post(&self.url)
             .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
             .json(&body)
             .send()
             .await?;
@@ -118,7 +122,8 @@ impl ChatClient {
         let status = response.status();
         if !status.is_success() {
             let status_code = status.as_u16();
-            let message = match response.json::<ApiErrorBody>().await {
+            let body_text = response.text().await.unwrap_or_default();
+            let message = match serde_json::from_str::<ApiErrorBody>(&body_text) {
                 Ok(err_body) => err_body
                     .error
                     .and_then(|e| e.message)
@@ -138,56 +143,74 @@ impl ChatClient {
         tokio::spawn(async move {
             use futures_util::StreamExt;
 
-            let mut buffer = String::new();
+            let mut buf: Vec<u8> = Vec::new();
+
+            /// Process all complete lines in `buf`, returning any incomplete
+            /// trailing bytes.  Returns `true` if the stream should stop
+            /// (either [DONE] was received or the receiver was dropped).
+            async fn process_lines(
+                buf: &mut Vec<u8>,
+                tx: &mpsc::Sender<Result<String, ChatError>>,
+            ) -> bool {
+                loop {
+                    let newline_pos = match buf.iter().position(|&b| b == b'\n') {
+                        Some(p) => p,
+                        None => return false,
+                    };
+
+                    let line_bytes = buf[..newline_pos].to_vec();
+                    *buf = buf[newline_pos + 1..].to_vec();
+
+                    let line = match String::from_utf8(line_bytes) {
+                        Ok(s) => s,
+                        Err(_) => continue, // skip invalid UTF-8 lines
+                    };
+                    let line = line.trim();
+
+                    if line.is_empty() || line.starts_with(':') {
+                        continue;
+                    }
+
+                    if let Some(data) = line.strip_prefix("data: ") {
+                        let data = data.trim();
+
+                        if data == "[DONE]" {
+                            return true;
+                        }
+
+                        match serde_json::from_str::<StreamChunk>(data) {
+                            Ok(chunk) => {
+                                for choice in &chunk.choices {
+                                    if let Some(ref content) = choice.delta.content {
+                                        if !content.is_empty() {
+                                            if tx.send(Ok(content.clone())).await.is_err() {
+                                                return true;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                let _ = tx
+                                    .send(Err(ChatError::Stream(format!(
+                                        "Failed to parse SSE chunk: {}",
+                                        e
+                                    ))))
+                                    .await;
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
 
             while let Some(chunk_result) = byte_stream.next().await {
                 match chunk_result {
                     Ok(bytes) => {
-                        let text = String::from_utf8_lossy(&bytes);
-                        buffer.push_str(&text);
+                        buf.extend_from_slice(&bytes);
 
-                        // Process complete lines from the buffer.
-                        while let Some(newline_pos) = buffer.find('\n') {
-                            let line = buffer[..newline_pos].trim().to_string();
-                            buffer = buffer[newline_pos + 1..].to_string();
-
-                            if line.is_empty() || line.starts_with(':') {
-                                // SSE comment or empty line — skip.
-                                continue;
-                            }
-
-                            if let Some(data) = line.strip_prefix("data: ") {
-                                let data = data.trim();
-
-                                if data == "[DONE]" {
-                                    return;
-                                }
-
-                                match serde_json::from_str::<StreamChunk>(data) {
-                                    Ok(chunk) => {
-                                        for choice in &chunk.choices {
-                                            if let Some(ref content) = choice.delta.content {
-                                                if !content.is_empty() {
-                                                    if tx.send(Ok(content.clone())).await.is_err()
-                                                    {
-                                                        // Receiver dropped.
-                                                        return;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    Err(e) => {
-                                        let _ = tx
-                                            .send(Err(ChatError::Stream(format!(
-                                                "Failed to parse SSE chunk: {}",
-                                                e
-                                            ))))
-                                            .await;
-                                        return;
-                                    }
-                                }
-                            }
+                        if process_lines(&mut buf, &tx).await {
+                            return;
                         }
                     }
                     Err(e) => {
@@ -195,6 +218,13 @@ impl ChatClient {
                         return;
                     }
                 }
+            }
+
+            // Process any remaining content in the buffer after the stream ends.
+            if !buf.is_empty() {
+                // Add a trailing newline so the line-based parser can process it.
+                buf.push(b'\n');
+                let _ = process_lines(&mut buf, &tx).await;
             }
         });
 
@@ -218,7 +248,6 @@ impl ChatClient {
             .client
             .post(&self.url)
             .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
             .json(&body)
             .send()
             .await?;
@@ -226,7 +255,8 @@ impl ChatClient {
         let status = response.status();
         if !status.is_success() {
             let status_code = status.as_u16();
-            let message = match response.json::<ApiErrorBody>().await {
+            let body_text = response.text().await.unwrap_or_default();
+            let message = match serde_json::from_str::<ApiErrorBody>(&body_text) {
                 Ok(err_body) => err_body
                     .error
                     .and_then(|e| e.message)
@@ -249,6 +279,9 @@ impl ChatClient {
         }
 
         let resp: NonStreamResponse = response.json().await?;
+        if resp.choices.is_empty() {
+            return Err(ChatError::Stream("API returned empty choices".to_string()));
+        }
         Ok(resp
             .choices
             .into_iter()

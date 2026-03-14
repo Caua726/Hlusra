@@ -115,9 +115,26 @@ pub async fn reindex_meeting(
     library: State<'_, Library>,
     rag: State<'_, RagState>,
 ) -> Result<(), RagCommandError> {
+    // Reload RAG config and validate BEFORE deleting existing chunks.
+    refresh_rag_config(&rag)?;
+    {
+        let config = rag
+            .config
+            .lock()
+            .map_err(|e| RagCommandError::Other(e.to_string()))?;
+        if config.embeddings_url.is_empty() || config.chat_url.is_empty() {
+            return Err(RagCommandError::Other(
+                "RAG not configured \u{2014} set API keys in Settings".to_string(),
+            ));
+        }
+    }
+
     // Delete existing chunks for this meeting.
     {
-        let store = rag.store.lock().map_err(|e| RagCommandError::Other(e.to_string()))?;
+        let store = rag
+            .store
+            .lock()
+            .map_err(|e| RagCommandError::Other(e.to_string()))?;
         store.delete_meeting_chunks(&id)?;
     }
 
@@ -178,16 +195,16 @@ pub async fn chat_message(
     while let Some(chunk_result) = rx.recv().await {
         match chunk_result {
             Ok(text) => {
-                let _ = app.emit_to("main", "chat-stream-chunk", &text);
+                let _ = app.emit("chat-stream-chunk", &text);
             }
             Err(e) => {
-                let _ = app.emit_to("main", "chat-stream-error", e.to_string());
+                let _ = app.emit("chat-stream-error", e.to_string());
                 return Err(RagCommandError::Chat(e));
             }
         }
     }
 
-    let _ = app.emit_to("main", "chat-stream-done", ());
+    let _ = app.emit("chat-stream-done", ());
     Ok(())
 }
 
@@ -270,10 +287,13 @@ async fn do_index_meeting(
 
     // Determine dimension from the first embedding and ensure the vector
     // table is set up correctly.
-    let dimension = embeddings
-        .first()
-        .map(|e| e.len())
-        .unwrap_or(0);
+    let dimension = embeddings.first().map(|e| e.len()).unwrap_or(0);
+
+    if dimension == 0 {
+        return Err(RagCommandError::Other(
+            "Embedding dimension is 0 — cannot initialise vector table".to_string(),
+        ));
+    }
 
     {
         let store = rag

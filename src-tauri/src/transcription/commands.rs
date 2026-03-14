@@ -23,12 +23,20 @@ fn create_provider() -> Result<Box<dyn TranscriptionProvider>, String> {
             let url = settings.transcription.api_url;
             let key = settings.transcription.api_key;
             let model = settings.transcription.model;
+            if url.trim().is_empty() {
+                return Err("API URL must not be empty for API provider".to_string());
+            }
+            if model.trim().is_empty() {
+                return Err("Model must not be empty for API provider".to_string());
+            }
             Ok(Box::new(ApiProvider::new(url, key, model)))
         }
-        _ => {
-            // "local" or any unrecognised value falls back to local.
+        "local" => {
             let active_model = models::get_active_model()?;
             Ok(Box::new(LocalProvider::new(active_model)))
+        }
+        other => {
+            Err(format!("Unknown transcription provider: '{other}'"))
         }
     }
 }
@@ -53,6 +61,11 @@ pub async fn transcribe_meeting(
         let meeting = library
             .get_meeting(&id)
             .map_err(|e| format!("Meeting not found: {e}"))?;
+
+        // Reject if transcription is already in progress.
+        if meeting.transcription_status == TranscriptionStatus::Processing {
+            return Err("Transcription is already in progress for this meeting".to_string());
+        }
 
         let mkv_path = library.get_artifact_path(&id, &ArtifactKind::Recording)
             .map_err(|e| format!("Failed to get recording path: {e}"))?;

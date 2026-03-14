@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
@@ -72,7 +74,10 @@ impl EmbeddingsClient {
     /// Create a new client from the RAG configuration.
     pub fn new(config: &RagConfig) -> Self {
         Self {
-            client: Client::new(),
+            client: Client::builder()
+                .timeout(Duration::from_secs(60))
+                .build()
+                .unwrap_or_else(|_| Client::new()),
             url: config.embeddings_url.clone(),
             api_key: config.embeddings_api_key.clone(),
             model: config.embeddings_model.clone(),
@@ -113,7 +118,6 @@ impl EmbeddingsClient {
             .client
             .post(&self.url)
             .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
             .json(&body)
             .send()
             .await?;
@@ -121,7 +125,8 @@ impl EmbeddingsClient {
         let status = response.status();
         if !status.is_success() {
             let status_code = status.as_u16();
-            let message = match response.json::<ApiErrorBody>().await {
+            let body_text = response.text().await.unwrap_or_default();
+            let message = match serde_json::from_str::<ApiErrorBody>(&body_text) {
                 Ok(err_body) => err_body
                     .error
                     .and_then(|e| e.message)
@@ -137,6 +142,14 @@ impl EmbeddingsClient {
         let resp: EmbeddingResponse = response.json().await?;
         if resp.data.is_empty() {
             return Err(EmbeddingsError::EmptyResponse);
+        }
+
+        // Validate that we got the expected number of embeddings back.
+        if resp.data.len() != texts.len() {
+            return Err(EmbeddingsError::DimensionMismatch {
+                expected: texts.len(),
+                got: resp.data.len(),
+            });
         }
 
         // Sort by index to guarantee order matches input.

@@ -52,6 +52,6 @@ pub fn all_models() -> Vec<WhisperModel> {
         WhisperModel { name: "base".into(), size_bytes: 147_000_000, downloaded: false },
         WhisperModel { name: "small".into(), size_bytes: 488_000_000, downloaded: false },
         WhisperModel { name: "medium".into(), size_bytes: 1_533_000_000, downloaded: false },
-        WhisperModel { name: "large".into(), size_bytes: 3_095_000_000, downloaded: false },
+        WhisperModel { name: "large-v3".into(), size_bytes: 3_086_999_552, downloaded: false },
     ]
 }

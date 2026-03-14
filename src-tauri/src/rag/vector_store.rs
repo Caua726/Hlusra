@@ -43,6 +43,7 @@ pub enum ModelStatus {
 /// - `rag_meta`: key-value table storing `embedding_model` and `embedding_dimension`
 pub struct VectorStore {
     conn: Connection,
+    vec_available: bool,
 }
 
 impl VectorStore {
@@ -62,7 +63,7 @@ impl VectorStore {
         let conn = Connection::open(db_path)?;
 
         // Try to load the sqlite-vec extension for vector search support.
-        Self::load_sqlite_vec(&conn);
+        let vec_available = Self::load_sqlite_vec(&conn);
 
         conn.execute_batch(
             "PRAGMA journal_mode = WAL;
@@ -91,7 +92,7 @@ impl VectorStore {
             );",
         )?;
 
-        Ok(VectorStore { conn })
+        Ok(VectorStore { conn, vec_available })
     }
 
     /// Try to load the sqlite-vec extension.  If it fails (e.g. the shared
@@ -101,22 +102,24 @@ impl VectorStore {
     ///
     /// TODO: Bundle the sqlite-vec shared library with the application so it
     /// is always available regardless of the host system.
-    fn load_sqlite_vec(conn: &Connection) {
+    fn load_sqlite_vec(conn: &Connection) -> bool {
         unsafe {
             if let Err(e) = conn.load_extension_enable() {
                 eprintln!("WARNING: could not enable SQLite extension loading: {e}");
-                return;
+                return false;
             }
-            match conn.load_extension("vec0", None::<&str>) {
-                Ok(()) => {}
+            let ok = match conn.load_extension("vec0", None::<&str>) {
+                Ok(()) => true,
                 Err(e) => {
                     eprintln!(
                         "WARNING: could not load sqlite-vec (vec0) extension: {e}. \
                          Vector search will not be available."
                     );
+                    false
                 }
-            }
+            };
             let _ = conn.load_extension_disable();
+            ok
         }
     }
 
@@ -165,7 +168,14 @@ impl VectorStore {
     /// Get the stored embedding dimension, if any.
     pub fn get_dimension(&self) -> Result<Option<usize>, VectorStoreError> {
         match self.get_meta("embedding_dimension")? {
-            Some(d) => Ok(Some(d.parse::<usize>().unwrap_or(0))),
+            Some(d) => {
+                let dim = d.parse::<usize>().map_err(|e| {
+                    VectorStoreError::Db(rusqlite::Error::InvalidParameterName(
+                        format!("invalid embedding_dimension '{}': {}", d, e),
+                    ))
+                })?;
+                Ok(Some(dim))
+            }
             None => Ok(None),
         }
     }
@@ -183,12 +193,13 @@ impl VectorStore {
         model: &str,
         dimension: usize,
     ) -> Result<(), VectorStoreError> {
+        let tx = self.conn.unchecked_transaction()?;
+
         // Drop old virtual table if present.
-        self.conn
-            .execute_batch("DROP TABLE IF EXISTS chunks_vec;")?;
+        tx.execute_batch("DROP TABLE IF EXISTS chunks_vec;")?;
 
         // Delete all stored chunks (embeddings are now invalid).
-        self.conn.execute_batch("DELETE FROM chunks;")?;
+        tx.execute_batch("DELETE FROM chunks;")?;
 
         // Create the sqlite-vec virtual table with the new dimension.
         let create_sql = format!(
@@ -197,12 +208,19 @@ impl VectorStore {
                 embedding float[{dimension}]
             );"
         );
-        self.conn.execute_batch(&create_sql)?;
+        tx.execute_batch(&create_sql)?;
 
         // Store the model and dimension in meta.
-        self.set_meta("embedding_model", model)?;
-        self.set_meta("embedding_dimension", &dimension.to_string())?;
+        tx.execute(
+            "INSERT OR REPLACE INTO rag_meta (key, value) VALUES (?1, ?2)",
+            params!["embedding_model", model],
+        )?;
+        tx.execute(
+            "INSERT OR REPLACE INTO rag_meta (key, value) VALUES (?1, ?2)",
+            params!["embedding_dimension", &dimension.to_string()],
+        )?;
 
+        tx.commit()?;
         Ok(())
     }
 
@@ -241,7 +259,9 @@ impl VectorStore {
     ) -> Result<(), VectorStoreError> {
         let embedding_blob = embedding_to_blob(embedding);
 
-        self.conn.execute(
+        let tx = self.conn.unchecked_transaction()?;
+
+        tx.execute(
             "INSERT OR REPLACE INTO chunks (id, meeting_id, text, start_time, end_time, chunk_index, embedding)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
@@ -255,12 +275,13 @@ impl VectorStore {
             ],
         )?;
 
-        self.conn.execute(
+        tx.execute(
             "INSERT OR REPLACE INTO chunks_vec (chunk_id, embedding)
              VALUES (?1, ?2)",
             params![chunk.id, embedding_blob],
         )?;
 
+        tx.commit()?;
         Ok(())
     }
 
@@ -270,7 +291,12 @@ impl VectorStore {
         chunks: &[Chunk],
         embeddings: &[Vec<f32>],
     ) -> Result<(), VectorStoreError> {
-        assert_eq!(chunks.len(), embeddings.len());
+        if chunks.len() != embeddings.len() {
+            return Err(VectorStoreError::Db(rusqlite::Error::InvalidParameterCount(
+                chunks.len(),
+                embeddings.len(),
+            )));
+        }
 
         let tx = self.conn.unchecked_transaction()?;
         for (chunk, emb) in chunks.iter().zip(embeddings.iter()) {
@@ -336,11 +362,14 @@ impl VectorStore {
     ) -> Result<Vec<Chunk>, VectorStoreError> {
         let query_blob = embedding_to_blob(query_embedding);
 
-        // sqlite-vec returns rows ordered by distance.  We join with the
-        // chunks table and filter by meeting_id.  We request more than top_k
-        // from the virtual table to account for chunks from other meetings,
-        // then LIMIT to top_k after the meeting filter.
-        let fetch_limit = top_k * 10; // over-fetch, then filter
+        // sqlite-vec returns rows ordered by distance.  We use the total
+        // chunk count as k so that the virtual table returns all rows,
+        // then filter by meeting_id and LIMIT to top_k.
+        let total_chunks: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM chunks",
+            [],
+            |row| row.get(0),
+        )?;
 
         let sql = format!(
             "SELECT c.id, c.meeting_id, c.text, c.start_time, c.end_time, c.chunk_index
@@ -357,7 +386,7 @@ impl VectorStore {
         let rows = stmt.query_map(
             params![
                 query_blob,
-                fetch_limit as i64,
+                total_chunks,
                 meeting_id,
                 top_k as i64
             ],

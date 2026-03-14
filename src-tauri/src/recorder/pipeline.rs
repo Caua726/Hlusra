@@ -11,6 +11,7 @@ pub struct RecordingPipeline {
     start_time: Instant,
     output_path: PathBuf,
     has_video: bool,
+    stopped_duration: Option<f64>,
 }
 
 impl RecordingPipeline {
@@ -29,7 +30,13 @@ impl RecordingPipeline {
             .build()
             .map_err(|e| format!("pipewiresrc: {}", e))?;
 
-        let mic_queue = gst::ElementFactory::make("queue").name("mic_queue").build().map_err(|e| e.to_string())?;
+        let mic_queue = gst::ElementFactory::make("queue")
+            .name("mic_queue")
+            .property("max-size-time", 5_000_000_000u64)
+            .property("max-size-buffers", 0u32)
+            .property("max-size-bytes", 0u32)
+            .build()
+            .map_err(|e| e.to_string())?;
         let mic_convert = gst::ElementFactory::make("audioconvert").name("mic_convert").build().map_err(|e| e.to_string())?;
         let mic_resample = gst::ElementFactory::make("audioresample").name("mic_resample").build().map_err(|e| e.to_string())?;
         let mic_enc = encode::create_audio_encoder(audio_config)?;
@@ -38,7 +45,7 @@ impl RecordingPipeline {
         let mux = gst::ElementFactory::make("matroskamux").name("mux").build().map_err(|e| e.to_string())?;
         let filesink = gst::ElementFactory::make("filesink")
             .name("filesink")
-            .property("location", output_path.to_string_lossy().to_string())
+            .property("location", output_path.to_str().ok_or("Path contains invalid UTF-8")?)
             .build()
             .map_err(|e| e.to_string())?;
 
@@ -58,6 +65,7 @@ impl RecordingPipeline {
             start_time: Instant::now(),
             output_path,
             has_video: false,
+            stopped_duration: None,
         })
     }
 
@@ -78,7 +86,13 @@ impl RecordingPipeline {
             .build()
             .map_err(|e| format!("pipewiresrc screen: {}", e))?;
 
-        let video_queue = gst::ElementFactory::make("queue").name("video_queue").build().map_err(|e| e.to_string())?;
+        let video_queue = gst::ElementFactory::make("queue")
+            .name("video_queue")
+            .property("max-size-time", 5_000_000_000u64)
+            .property("max-size-buffers", 0u32)
+            .property("max-size-bytes", 0u32)
+            .build()
+            .map_err(|e| e.to_string())?;
         let videoconvert = gst::ElementFactory::make("videoconvert").name("videoconvert").build().map_err(|e| e.to_string())?;
 
         // Scale and constrain video to configured width/height/fps
@@ -109,7 +123,13 @@ impl RecordingPipeline {
             .property("stream-properties", &mic_props)
             .build()
             .map_err(|e| e.to_string())?;
-        let mic_queue = gst::ElementFactory::make("queue").name("mic_queue").build().map_err(|e| e.to_string())?;
+        let mic_queue = gst::ElementFactory::make("queue")
+            .name("mic_queue")
+            .property("max-size-time", 5_000_000_000u64)
+            .property("max-size-buffers", 0u32)
+            .property("max-size-bytes", 0u32)
+            .build()
+            .map_err(|e| e.to_string())?;
         let mic_convert = gst::ElementFactory::make("audioconvert").name("mic_convert").build().map_err(|e| e.to_string())?;
         let mic_resample = gst::ElementFactory::make("audioresample").name("mic_resample").build().map_err(|e| e.to_string())?;
         let mic_enc = encode::create_audio_encoder(audio_config)?;
@@ -122,7 +142,13 @@ impl RecordingPipeline {
             .property("stream-properties", &sys_props)
             .build()
             .map_err(|e| e.to_string())?;
-        let sys_queue = gst::ElementFactory::make("queue").name("sys_queue").build().map_err(|e| e.to_string())?;
+        let sys_queue = gst::ElementFactory::make("queue")
+            .name("sys_queue")
+            .property("max-size-time", 5_000_000_000u64)
+            .property("max-size-buffers", 0u32)
+            .property("max-size-bytes", 0u32)
+            .build()
+            .map_err(|e| e.to_string())?;
         let sys_convert = gst::ElementFactory::make("audioconvert").name("sys_convert").build().map_err(|e| e.to_string())?;
         let sys_resample = gst::ElementFactory::make("audioresample").name("sys_resample").build().map_err(|e| e.to_string())?;
         let sys_enc = encode::create_audio_encoder(audio_config)?;
@@ -130,7 +156,7 @@ impl RecordingPipeline {
         let mux = gst::ElementFactory::make("matroskamux").name("mux").build().map_err(|e| e.to_string())?;
         let filesink = gst::ElementFactory::make("filesink")
             .name("filesink")
-            .property("location", output_path.to_string_lossy().to_string())
+            .property("location", output_path.to_str().ok_or("Path contains invalid UTF-8")?)
             .build()
             .map_err(|e| e.to_string())?;
 
@@ -163,6 +189,7 @@ impl RecordingPipeline {
             start_time: Instant::now(),
             output_path,
             has_video: true,
+            stopped_duration: None,
         })
     }
 
@@ -173,7 +200,8 @@ impl RecordingPipeline {
         Ok(())
     }
 
-    pub fn stop(&self) -> Result<(), String> {
+    pub fn stop(&mut self) -> Result<(), String> {
+        self.stopped_duration = Some(self.start_time.elapsed().as_secs_f64());
         self.pipeline.send_event(gst::event::Eos::new());
         // Wait for EOS to propagate
         let bus = self.pipeline.bus().ok_or("No bus")?;
@@ -204,7 +232,7 @@ impl RecordingPipeline {
     }
 
     pub fn duration_secs(&self) -> f64 {
-        self.start_time.elapsed().as_secs_f64()
+        self.stopped_duration.unwrap_or_else(|| self.start_time.elapsed().as_secs_f64())
     }
 
     pub fn output_path(&self) -> &PathBuf {
@@ -219,5 +247,11 @@ impl RecordingPipeline {
         std::fs::metadata(&self.output_path)
             .map(|m| m.len())
             .unwrap_or(0)
+    }
+}
+
+impl Drop for RecordingPipeline {
+    fn drop(&mut self) {
+        let _ = self.pipeline.set_state(gst::State::Null);
     }
 }

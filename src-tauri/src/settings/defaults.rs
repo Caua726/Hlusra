@@ -22,17 +22,13 @@ impl Default for GeneralSettings {
             .unwrap_or_else(|| {
                 let fallback = std::env::var("HOME")
                     .unwrap_or_else(|_| "/tmp/hlusra".to_string());
-                eprintln!(
-                    "WARNING: could not determine home dir, falling back to {}",
-                    fallback
-                );
                 PathBuf::from(fallback)
             })
             .join("Hlusra")
             .join("recordings");
 
         Self {
-            recordings_dir: recordings_dir.to_string_lossy().to_string(),
+            recordings_dir,
             auto_meeting_name: "Reunião {date} {time}".to_string(),
             start_minimized: false,
         }
@@ -94,7 +90,8 @@ mod tests {
     #[test]
     fn test_defaults_are_sensible() {
         let settings = AppSettings::default();
-        assert!(settings.general.recordings_dir.contains("Hlusra"));
+        let recordings_str = settings.general.recordings_dir.to_string_lossy();
+        assert!(recordings_str.contains("Hlusra"));
         assert_eq!(settings.video.codec, "h265");
         assert_eq!(settings.video.backend, "vaapi");
         assert_eq!(settings.video.fps, 15);
