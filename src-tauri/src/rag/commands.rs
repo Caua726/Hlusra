@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 
 use crate::library::api::Library;
 use crate::library::types::{ArtifactKind, ChatStatus};
@@ -10,6 +10,7 @@ use crate::rag::embeddings::EmbeddingsClient;
 use crate::rag::prompt::build_messages;
 use crate::rag::types::RagConfig;
 use crate::rag::vector_store::VectorStore;
+use crate::settings::config::load_settings;
 use crate::transcription::types::TranscriptResult;
 
 /// Shared state wrapper for the VectorStore (needs Mutex since rusqlite
@@ -46,6 +47,21 @@ impl serde::Serialize for RagCommandError {
     }
 }
 
+/// Reload the RAG config from the user's saved settings into the managed state.
+/// This ensures the RAG commands always use the latest configured API keys/URLs
+/// instead of the empty defaults set at startup.
+fn refresh_rag_config(rag: &RagState) -> Result<(), RagCommandError> {
+    let settings = load_settings()
+        .map_err(|e| RagCommandError::Other(format!("Failed to load settings: {e}")))?;
+    let new_config = RagConfig::from_settings(&settings.rag);
+    let mut config = rag
+        .config
+        .lock()
+        .map_err(|e| RagCommandError::Other(e.to_string()))?;
+    *config = new_config;
+    Ok(())
+}
+
 /// Index a meeting's transcript: chunk it, embed chunks, store in vector DB.
 ///
 /// Updates the meeting's `chat_status` in the Library as it progresses.
@@ -55,6 +71,9 @@ pub async fn index_meeting(
     library: State<'_, Library>,
     rag: State<'_, RagState>,
 ) -> Result<(), RagCommandError> {
+    // Reload RAG config from user settings before each operation.
+    refresh_rag_config(&rag)?;
+
     // Validate that RAG is configured before starting.
     {
         let config = rag
@@ -117,6 +136,9 @@ pub async fn chat_message(
     message: String,
     rag: State<'_, RagState>,
 ) -> Result<(), RagCommandError> {
+    // Reload RAG config from user settings before each operation.
+    refresh_rag_config(&rag)?;
+
     let (config, relevant_chunks) = {
         let config = rag
             .config

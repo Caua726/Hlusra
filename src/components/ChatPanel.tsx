@@ -6,6 +6,8 @@ import { formatError } from "../lib/format";
 interface Props {
   meetingId: string;
   chatStatus: "not_indexed" | "indexing" | "ready" | "failed";
+  meetingTitle: string;
+  onBack: () => void;
   onStatusChange: () => void;
 }
 
@@ -14,7 +16,7 @@ interface ChatMsg {
   content: string;
 }
 
-export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Props) {
+export default function ChatPanel({ meetingId, chatStatus, meetingTitle, onBack, onStatusChange }: Props) {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -30,7 +32,6 @@ export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Pro
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      // Clean up any active listeners on unmount
       cleanupListenersRef.current?.();
     };
   }, []);
@@ -86,7 +87,6 @@ export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Pro
       { role: "assistant", content: "" },
     ]);
 
-    // Await all listeners BEFORE calling chatMessage to avoid race conditions
     const unlistenChunk = await listen<string>("chat-stream-chunk", (event) => {
       streamBufferRef.current += event.payload;
       appendToLastAssistant(event.payload);
@@ -132,76 +132,132 @@ export default function ChatPanel({ meetingId, chatStatus, onStatusChange }: Pro
     }
   }
 
+  // Not indexed or failed - show index prompt
   if (currentStatus === "not_indexed" || currentStatus === "failed") {
     return (
-      <div className="mb-8">
-        <h3 className="text-lg font-semibold mb-4 pb-2 border-b border-zinc-700">Chat</h3>
-        <div className="flex flex-col items-center gap-3 p-8 text-center text-zinc-500">
+      <>
+        <header className="glass shrink-0 border-b border-white/5">
+          <div className="px-5 h-12 flex items-center gap-3">
+            <button onClick={onBack} className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h1 className="text-sm font-semibold text-white/80">Chat</h1>
+            <span className="text-[10px] text-white/20">{meetingTitle}</span>
+          </div>
+        </header>
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
           {currentStatus === "failed" && (
-            <p className="text-red-500 text-sm">A indexacao falhou.</p>
+            <p className="text-red-500 text-[12px]">A indexacao falhou.</p>
           )}
-          <p>A reuniao precisa ser indexada antes de usar o chat.</p>
-          <button className="bg-rose-500 text-white border-none px-6 py-2.5 rounded-lg text-sm cursor-pointer transition-colors duration-150 font-medium hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed" onClick={handleIndex} disabled={indexing}>
+          <p className="text-white/30 text-[13px]">A reuniao precisa ser indexada antes de usar o chat.</p>
+          <button
+            className="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-[12px] font-medium transition-all active:scale-[0.98] glow-sm cursor-pointer border-0 disabled:opacity-40"
+            onClick={handleIndex}
+            disabled={indexing}
+          >
             {indexing ? "Indexando..." : "Indexar reuniao"}
           </button>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
+          {error && <p className="text-red-500 text-[12px]">{error}</p>}
         </div>
-      </div>
+      </>
     );
   }
 
+  // Indexing
   if (currentStatus === "indexing" || indexing) {
     return (
-      <div className="mb-8">
-        <h3 className="text-lg font-semibold mb-4 pb-2 border-b border-zinc-700">Chat</h3>
-        <div className="flex flex-col items-center gap-3 p-8 text-center text-zinc-500">
-          <div className="w-6 h-6 border-[3px] border-zinc-700 border-t-rose-500 rounded-full animate-[spin_0.7s_linear_infinite]" />
-          <p>Indexando reuniao...</p>
+      <>
+        <header className="glass shrink-0 border-b border-white/5">
+          <div className="px-5 h-12 flex items-center gap-3">
+            <button onClick={onBack} className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h1 className="text-sm font-semibold text-white/80">Chat</h1>
+            <span className="text-[10px] text-white/20">{meetingTitle}</span>
+          </div>
+        </header>
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-white/30">
+          <div className="w-6 h-6 border-[3px] border-white/10 border-t-brand-500 rounded-full animate-[spin_0.7s_linear_infinite]" />
+          <p className="text-[13px]">Indexando reuniao...</p>
         </div>
-      </div>
+      </>
     );
   }
 
+  // Ready - full chat view
   return (
-    <div className="mb-8">
-      <h3 className="text-lg font-semibold mb-4 pb-2 border-b border-zinc-700">Chat</h3>
-      <div className="max-h-[400px] overflow-y-auto py-2 mb-4 flex flex-col gap-3">
+    <>
+      <header className="glass shrink-0 border-b border-white/5">
+        <div className="px-5 h-12 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button onClick={onBack} className="text-white/25 hover:text-white/60 transition-colors p-1.5 rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h1 className="text-sm font-semibold text-white/80">Chat</h1>
+            <span className="text-[10px] text-white/20">{meetingTitle}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/70 animate-pulse" />
+            <span className="text-[10px] text-white/30">Pronto</span>
+          </div>
+        </div>
+      </header>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {messages.length === 0 && (
-          <p className="text-center text-zinc-600 py-8 text-sm">Faca uma pergunta sobre esta reuniao.</p>
+          <div className="flex items-center justify-center h-full">
+            <p className="text-white/20 text-[13px]">Faca uma pergunta sobre esta reuniao.</p>
+          </div>
         )}
         {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`max-w-[80%] px-4 py-3 rounded-xl text-sm leading-normal break-words whitespace-pre-wrap ${
+          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} stagger`}>
+            <div className={`rounded-2xl px-4 py-3 max-w-[${msg.role === "user" ? "75" : "80"}%] ${
               msg.role === "user"
-                ? "self-end bg-rose-500 text-white rounded-br-sm"
-                : "self-start bg-zinc-800/50 text-zinc-100 border border-zinc-700 rounded-bl-sm"
-            }`}
-          >
-            <p>{msg.content || (sending && msg.role === "assistant" ? "..." : "")}</p>
+                ? "bg-brand-500/8 border border-brand-500/10 rounded-br-md"
+                : "glass-heavy rounded-bl-md"
+            }`}>
+              <p className={`text-[13px] leading-relaxed break-words whitespace-pre-wrap ${
+                msg.role === "user" ? "text-white/70" : "text-white/50"
+              }`}>
+                {msg.content || (sending && msg.role === "assistant" ? "..." : "")}
+              </p>
+            </div>
           </div>
         ))}
         <div ref={messagesEndRef} />
       </div>
-      <div className="flex gap-2 items-end">
-        <textarea
-          className="flex-1 bg-zinc-800 text-zinc-100 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm font-[inherit] resize-none outline-none transition-colors duration-150 min-h-[40px] focus:border-blue-500"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Digite sua pergunta..."
-          disabled={sending}
-          rows={1}
-        />
-        <button
-          className="bg-rose-500 text-white border-none px-6 py-2.5 rounded-lg text-sm cursor-pointer transition-colors duration-150 font-medium hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-          onClick={handleSend}
-          disabled={sending || !input.trim()}
-        >
-          Enviar
-        </button>
+
+      {/* Input */}
+      <div className="p-4 border-t border-white/5 shrink-0">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Pergunte sobre a reuniao..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={sending}
+            className="flex-1 glass-input rounded-xl px-4 py-3 text-[13px] text-white/70 placeholder-white/20 focus:outline-none focus:border-brand-500/30 focus:shadow-[0_0_0_3px_rgba(244,63,94,0.08)] transition-all"
+          />
+          <button
+            onClick={handleSend}
+            disabled={sending || !input.trim()}
+            className="px-5 py-3 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-xl text-[12px] font-medium transition-all active:scale-95 glow-sm hover:shadow-lg hover:shadow-brand-500/20 border-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
+          </button>
+        </div>
+        {error && <p className="text-red-500 text-[11px] mt-2">{error}</p>}
       </div>
-      {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
-    </div>
+    </>
   );
 }
