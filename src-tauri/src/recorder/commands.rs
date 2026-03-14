@@ -111,18 +111,9 @@ pub async fn start_recording(
     })?;
     tracing::info!("pipeline started successfully");
 
-    // Open floating recording widget window
-    let _ = tauri::WebviewWindowBuilder::new(
-        &app,
-        "widget",
-        tauri::WebviewUrl::App("widget.html".into()),
-    )
-    .title("Hlusra - Gravando")
-    .inner_size(200.0, 80.0)
-    .always_on_top(true)
-    .decorations(false)
-    .resizable(false)
-    .build();
+    // TODO: Floating widget disabled for now — user reported it as unwanted popup.
+    // Re-enable when widget UX is polished (configurable in settings).
+    // let _ = tauri::WebviewWindowBuilder::new(&app, "widget", ...);
 
     // I23: Lock pipeline first, then meeting_id. If meeting_id lock fails,
     // take the pipeline back and stop it to avoid inconsistent state.
@@ -196,6 +187,7 @@ pub async fn stop_recording(
     } else {
         vec![
             TrackInfo { index: 0, label: "mic".into(), codec: "opus".into() },
+            TrackInfo { index: 1, label: "system".into(), codec: "opus".into() },
         ]
     };
 
