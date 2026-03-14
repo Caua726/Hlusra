@@ -104,12 +104,18 @@ impl Library {
             chat_status: ChatStatus::NotIndexed,
         };
 
-        // Generate thumbnail for video meetings (non-fatal on failure)
+        // Generate thumbnail (non-fatal on failure)
+        let recording_path = meeting.dir_path.join("recording.mkv");
+        let thumb_path = meeting.dir_path.join("thumbnail.jpg");
         if info.has_video {
-            let video_path = meeting.dir_path.join("recording.mkv");
-            let thumb_path = meeting.dir_path.join("thumbnail.jpg");
-            if let Err(e) = super::thumbnail::generate_thumbnail(&video_path, &thumb_path) {
-                tracing::error!("thumbnail generation failed: {}", e);
+            // Video: extract a frame at ~10s
+            if let Err(e) = super::thumbnail::generate_video_thumbnail(&recording_path, &thumb_path) {
+                tracing::error!("video thumbnail generation failed: {}", e);
+            }
+        } else {
+            // Audio-only: generate waveform image
+            if let Err(e) = super::thumbnail::generate_audio_waveform(&recording_path, &thumb_path) {
+                tracing::error!("audio waveform generation failed: {}", e);
             }
         }
 
