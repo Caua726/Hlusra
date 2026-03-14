@@ -164,6 +164,18 @@ fn export_pdf(meeting_dir: &Path, output_path: &Path) -> Result<PathBuf, ExportE
     Ok(output_path.to_path_buf())
 }
 
+/// Wrapper for deserializing the top-level transcript.json structure.
+/// The file contains `{ "language": "...", "segments": [...], "full_text": "..." }`,
+/// NOT a bare array of segments.
+#[derive(Debug, Deserialize)]
+struct TranscriptFile {
+    #[allow(dead_code)]
+    language: Option<String>,
+    segments: Vec<TranscriptSegment>,
+    #[allow(dead_code)]
+    full_text: Option<String>,
+}
+
 /// Load transcript segments from transcript.json.
 fn load_segments(meeting_dir: &Path) -> Result<Vec<TranscriptSegment>, ExportError> {
     let json_path = meeting_dir.join("transcript.json");
@@ -172,9 +184,16 @@ fn load_segments(meeting_dir: &Path) -> Result<Vec<TranscriptSegment>, ExportErr
     }
 
     let content = fs::read_to_string(&json_path)?;
-    let segments: Vec<TranscriptSegment> =
-        serde_json::from_str(&content).map_err(|e| ExportError::InvalidTranscript(e.to_string()))?;
-    Ok(segments)
+    // BUG FIX: transcript.json is a TranscriptResult object { language, segments, full_text },
+    // not a bare Vec<TranscriptSegment>. Deserializing as Vec would always fail with a
+    // serde error at runtime.
+    let transcript: TranscriptFile = serde_json::from_str(&content)
+        .map_err(|e| {
+            eprintln!("[export] BUG-FIX: failed to parse transcript.json as TranscriptFile: {}", e);
+            ExportError::InvalidTranscript(e.to_string())
+        })?;
+    eprintln!("[export] load_segments: parsed {} segments from transcript.json", transcript.segments.len());
+    Ok(transcript.segments)
 }
 
 /// Format seconds as SRT timestamp: HH:MM:SS,mmm
