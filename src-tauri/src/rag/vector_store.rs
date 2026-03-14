@@ -60,10 +60,9 @@ impl VectorStore {
         }
 
         let conn = Connection::open(db_path)?;
-        // NOTE: sqlite-vec extension loading removed — the vec0 extension
-        // must be loaded externally or compiled into SQLite.  The virtual
-        // table DDL in init_vector_table will error at runtime if vec0 is
-        // not available.
+
+        // Try to load the sqlite-vec extension for vector search support.
+        Self::load_sqlite_vec(&conn);
 
         conn.execute_batch(
             "PRAGMA journal_mode = WAL;
@@ -93,6 +92,32 @@ impl VectorStore {
         )?;
 
         Ok(VectorStore { conn })
+    }
+
+    /// Try to load the sqlite-vec extension.  If it fails (e.g. the shared
+    /// library is not installed on this system), log a warning and continue
+    /// without vector search — the rest of VectorStore (chunk storage, meta)
+    /// still works.
+    ///
+    /// TODO: Bundle the sqlite-vec shared library with the application so it
+    /// is always available regardless of the host system.
+    fn load_sqlite_vec(conn: &Connection) {
+        unsafe {
+            if let Err(e) = conn.load_extension_enable() {
+                eprintln!("WARNING: could not enable SQLite extension loading: {e}");
+                return;
+            }
+            match conn.load_extension("vec0", None::<&str>) {
+                Ok(()) => {}
+                Err(e) => {
+                    eprintln!(
+                        "WARNING: could not load sqlite-vec (vec0) extension: {e}. \
+                         Vector search will not be available."
+                    );
+                }
+            }
+            let _ = conn.load_extension_disable();
+        }
     }
 
     /// Returns `~/.local/share/hlusra/rag.db`.

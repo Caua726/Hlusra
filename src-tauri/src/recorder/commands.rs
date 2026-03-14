@@ -1,7 +1,7 @@
 use std::sync::Mutex;
 use tauri::State;
 use crate::library::api::Library;
-use crate::library::types::{RecordingInfo, TrackInfo, ArtifactKind};
+use crate::library::types::{RecordingInfo, TrackInfo};
 use crate::recorder::capture::ScreenCapture;
 use crate::recorder::pipeline::RecordingPipeline;
 use crate::recorder::types::*;
@@ -39,7 +39,7 @@ pub async fn start_recording(
         let source = capture.request_screen().await?;
         let p = RecordingPipeline::build_with_video(output_path, &source, &video_config, &audio_config)?;
         // Store capture in RecorderState so OwnedFd outlives the pipeline
-        *recorder.capture.lock().unwrap() = Some(capture);
+        *recorder.capture.lock().map_err(|_| "Recorder lock poisoned".to_string())? = Some(capture);
         p
     } else {
         RecordingPipeline::build_audio_only(output_path, &audio_config)?
@@ -47,8 +47,8 @@ pub async fn start_recording(
 
     pipeline.start()?;
 
-    *recorder.pipeline.lock().unwrap() = Some(pipeline);
-    *recorder.current_meeting_id.lock().unwrap() = Some(prepared.id.clone());
+    *recorder.pipeline.lock().map_err(|_| "Recorder lock poisoned".to_string())? = Some(pipeline);
+    *recorder.current_meeting_id.lock().map_err(|_| "Recorder lock poisoned".to_string())? = Some(prepared.id.clone());
 
     Ok(prepared.id)
 }
@@ -58,15 +58,15 @@ pub fn stop_recording(
     library: State<'_, Library>,
     recorder: State<'_, RecorderState>,
 ) -> Result<crate::library::types::Meeting, String> {
-    let mut pipeline_lock = recorder.pipeline.lock().unwrap();
+    let mut pipeline_lock = recorder.pipeline.lock().map_err(|_| "Recorder lock poisoned".to_string())?;
     let pipeline = pipeline_lock.take().ok_or("No active recording")?;
 
     pipeline.stop()?;
 
     // Release screen capture fd
-    *recorder.capture.lock().unwrap() = None;
+    *recorder.capture.lock().map_err(|_| "Recorder lock poisoned".to_string())? = None;
 
-    let meeting_id = recorder.current_meeting_id.lock().unwrap().take()
+    let meeting_id = recorder.current_meeting_id.lock().map_err(|_| "Recorder lock poisoned".to_string())?.take()
         .ok_or("No meeting ID")?;
 
     let info = RecordingInfo {
@@ -89,9 +89,9 @@ pub fn stop_recording(
 #[tauri::command]
 pub fn get_recording_status(
     recorder: State<'_, RecorderState>,
-) -> RecordingStatus {
-    let pipeline_lock = recorder.pipeline.lock().unwrap();
-    match pipeline_lock.as_ref() {
+) -> Result<RecordingStatus, String> {
+    let pipeline_lock = recorder.pipeline.lock().map_err(|_| "Recorder lock poisoned".to_string())?;
+    Ok(match pipeline_lock.as_ref() {
         Some(p) => RecordingStatus {
             state: RecordingState::Recording,
             duration_secs: p.duration_secs(),
@@ -102,17 +102,17 @@ pub fn get_recording_status(
             duration_secs: 0.0,
             file_size: 0,
         },
-    }
+    })
 }
 
 #[tauri::command]
-pub fn probe_encoders() -> std::collections::HashMap<String, Vec<String>> {
-    gstreamer::init().ok();
+pub fn probe_encoders() -> Result<std::collections::HashMap<String, Vec<String>>, String> {
+    gstreamer::init().map_err(|e| format!("GStreamer init failed: {}", e))?;
     let available = crate::recorder::encode::probe_available();
-    available.into_iter()
+    Ok(available.into_iter()
         .map(|(backend, codecs)| {
             (format!("{:?}", backend).to_lowercase(),
              codecs.iter().map(|c| format!("{:?}", c).to_lowercase()).collect())
         })
-        .collect()
+        .collect())
 }

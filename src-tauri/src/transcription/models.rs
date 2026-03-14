@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::Write;
+use std::io;
 use std::path::PathBuf;
 
 use crate::transcription::types::{all_models, WhisperModel};
@@ -59,7 +59,7 @@ pub fn download_model(model_name: &str) -> Result<(), String> {
     let url = model.download_url();
     let part_path = dir.join(format!("{}.part", model.filename()));
 
-    let response = reqwest::blocking::get(&url)
+    let mut response = reqwest::blocking::get(&url)
         .map_err(|e| format!("Failed to start download for {model_name}: {e}"))?;
 
     if !response.status().is_success() {
@@ -69,16 +69,10 @@ pub fn download_model(model_name: &str) -> Result<(), String> {
         ));
     }
 
-    let bytes = response
-        .bytes()
-        .map_err(|e| format!("Failed to download {model_name}: {e}"))?;
-
     let mut file = fs::File::create(&part_path)
         .map_err(|e| format!("Failed to create temp file: {e}"))?;
-    file.write_all(&bytes)
-        .map_err(|e| format!("Failed to write model data: {e}"))?;
-    file.flush()
-        .map_err(|e| format!("Failed to flush model file: {e}"))?;
+    io::copy(&mut response, &mut file)
+        .map_err(|e| format!("Failed to download {model_name}: {e}"))?;
 
     fs::rename(&part_path, &dest)
         .map_err(|e| format!("Failed to finalize model file: {e}"))?;

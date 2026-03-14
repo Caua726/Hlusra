@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use super::types::{SaveMode, VideoFormat};
+use super::types::{resolve_output_path, SaveMode, VideoFormat};
 use super::ExportError;
 
 /// Export video from a meeting's recording.mkv to the specified format.
@@ -62,14 +62,6 @@ pub fn export_video(
     }
 
     Ok(output_path)
-}
-
-/// Resolve the final output path based on the save mode.
-fn resolve_output_path(meeting_dir: &Path, filename: &str, save_mode: &SaveMode) -> PathBuf {
-    match save_mode {
-        SaveMode::Save => meeting_dir.join(filename),
-        SaveMode::SaveAs { path } => path.clone(),
-    }
 }
 
 #[cfg(test)]

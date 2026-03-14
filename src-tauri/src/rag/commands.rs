@@ -55,6 +55,19 @@ pub async fn index_meeting(
     library: State<'_, Library>,
     rag: State<'_, RagState>,
 ) -> Result<(), RagCommandError> {
+    // Validate that RAG is configured before starting.
+    {
+        let config = rag
+            .config
+            .lock()
+            .map_err(|e| RagCommandError::Other(e.to_string()))?;
+        if config.embeddings_url.is_empty() || config.chat_url.is_empty() {
+            return Err(RagCommandError::Other(
+                "RAG not configured \u{2014} set API keys in Settings".to_string(),
+            ));
+        }
+    }
+
     // Mark as indexing.
     library
         .update_chat_status(&id, ChatStatus::Indexing)
@@ -111,6 +124,13 @@ pub async fn chat_message(
             .map_err(|e| RagCommandError::Other(e.to_string()))?
             .clone();
 
+        // Validate that RAG is configured.
+        if config.embeddings_url.is_empty() || config.chat_url.is_empty() {
+            return Err(RagCommandError::Other(
+                "RAG not configured \u{2014} set API keys in Settings".to_string(),
+            ));
+        }
+
         // Embed the user's question.
         let emb_client = EmbeddingsClient::new(&config);
         let query_embedding = emb_client.embed_one(&message).await?;
@@ -136,16 +156,16 @@ pub async fn chat_message(
     while let Some(chunk_result) = rx.recv().await {
         match chunk_result {
             Ok(text) => {
-                let _ = app.emit("chat-stream-chunk", &text);
+                let _ = app.emit_to("main", "chat-stream-chunk", &text);
             }
             Err(e) => {
-                let _ = app.emit("chat-stream-error", e.to_string());
+                let _ = app.emit_to("main", "chat-stream-error", e.to_string());
                 return Err(RagCommandError::Chat(e));
             }
         }
     }
 
-    let _ = app.emit("chat-stream-done", ());
+    let _ = app.emit_to("main", "chat-stream-done", ());
     Ok(())
 }
 
@@ -189,16 +209,16 @@ async fn do_index_meeting(
     rag: &RagState,
 ) -> Result<(), RagCommandError> {
     // Read the transcript JSON from the library's filesystem.
-    let meeting = library
-        .get_meeting(id)
+    let has_transcript = library
+        .has_artifact(id, &ArtifactKind::TranscriptJson)
         .map_err(|e| RagCommandError::Library(e.to_string()))?;
 
-    if !library.has_artifact(&meeting.dir_path, &ArtifactKind::TranscriptJson) {
+    if !has_transcript {
         return Err(RagCommandError::TranscriptNotFound(id.to_string()));
     }
 
     let transcript_bytes = library
-        .read_artifact(&meeting.dir_path, &ArtifactKind::TranscriptJson)
+        .read_artifact(id, &ArtifactKind::TranscriptJson)
         .map_err(|e| RagCommandError::Library(e.to_string()))?;
 
     let transcript: TranscriptResult = serde_json::from_slice(&transcript_bytes)?;
@@ -216,10 +236,15 @@ async fn do_index_meeting(
         return Ok(());
     }
 
-    // Embed all chunks.
+    // Embed all chunks in batches of 50 to avoid overloading the API.
     let emb_client = EmbeddingsClient::new(&config);
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-    let embeddings = emb_client.embed_batch(&texts).await?;
+    let mut embeddings: Vec<Vec<f32>> = Vec::with_capacity(texts.len());
+    const BATCH_SIZE: usize = 50;
+    for batch in texts.chunks(BATCH_SIZE) {
+        let batch_embeddings = emb_client.embed_batch(batch).await?;
+        embeddings.extend(batch_embeddings);
+    }
 
     // Determine dimension from the first embedding and ensure the vector
     // table is set up correctly.
