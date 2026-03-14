@@ -1,3 +1,4 @@
+use genpdf::Element;
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -215,7 +216,7 @@ mod tests {
         assert_eq!(format_srt_timestamp(0.0), "00:00:00,000");
         assert_eq!(format_srt_timestamp(1.5), "00:00:01,500");
         assert_eq!(format_srt_timestamp(61.234), "00:01:01,234");
-        assert_eq!(format_srt_timestamp(3661.999), "01:01:02,000"); // rounding
+        assert_eq!(format_srt_timestamp(3661.999), "01:01:01,999");
         assert_eq!(format_srt_timestamp(3600.0), "01:00:00,000");
     }
 

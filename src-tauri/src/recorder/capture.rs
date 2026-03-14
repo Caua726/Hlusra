@@ -1,5 +1,5 @@
-use ashpd::desktop::screencast::{CursorMode, PersistMode, Screencast, SourceType};
-use ashpd::WindowIdentifier;
+use ashpd::desktop::screencast::{CursorMode, Screencast, SelectSourcesOptions, SourceType, StartCastOptions};
+use ashpd::desktop::{CreateSessionOptions, PersistMode};
 
 #[derive(Debug, Clone)]
 pub struct PipeWireSource {
@@ -23,30 +23,36 @@ impl ScreenCapture {
             .await
             .map_err(|e| format!("Failed to create screencast proxy: {}", e))?;
 
-        let session = proxy.create_session()
+        let session = proxy.create_session(CreateSessionOptions::default())
             .await
             .map_err(|e| format!("Failed to create session: {}", e))?;
 
-        proxy.select_sources(
-            &session,
-            CursorMode::Embedded,
-            SourceType::Monitor | SourceType::Window,
-            false,
-            None,
-            PersistMode::DoNot,
-        )
-        .await
-        .map_err(|e| format!("Failed to select sources: {}", e))?;
+        let select_sources_options = SelectSourcesOptions::default()
+            .set_cursor_mode(CursorMode::Embedded)
+            .set_sources(SourceType::Monitor | SourceType::Window)
+            .set_multiple(false)
+            .set_persist_mode(PersistMode::DoNot);
 
-        let response = proxy.start(&session, &WindowIdentifier::default())
+        proxy.select_sources(&session, select_sources_options)
+            .await
+            .map_err(|e| format!("Failed to select sources: {}", e))?;
+
+        let response = proxy.start(&session, None, StartCastOptions::default())
             .await
             .map_err(|e| format!("Failed to start: {}", e))?;
 
-        let stream = response.streams().first()
+        let streams_response = response.response()
+            .map_err(|e| format!("Failed to get response: {}", e))?;
+
+        let stream = streams_response.streams().first()
             .ok_or("No stream returned from portal")?;
 
-        let fd = response.fd()
-            .map_err(|e| format!("Failed to get fd: {}", e))?;
+        let fd = proxy.open_pipe_wire_remote(
+            &session,
+            Default::default(),
+        )
+        .await
+        .map_err(|e| format!("Failed to get fd: {}", e))?;
 
         let node_id = stream.pipe_wire_node_id();
 

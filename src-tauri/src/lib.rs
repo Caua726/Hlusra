@@ -1,6 +1,12 @@
 mod library;
+mod recorder;
+mod transcription;
+mod rag;
+mod settings;
+mod export;
 
 use library::Library;
+use recorder::commands::RecorderState;
 use std::path::PathBuf;
 
 fn get_recordings_dir() -> PathBuf {
@@ -29,12 +35,22 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .manage(library)
+        .manage(RecorderState::new())
         .invoke_handler(tauri::generate_handler![
+            // Library
             library::commands::list_meetings,
             library::commands::get_meeting,
             library::commands::update_meeting_title,
             library::commands::delete_meeting,
             library::commands::get_thumbnail,
+            // Recorder
+            recorder::commands::start_recording,
+            recorder::commands::stop_recording,
+            recorder::commands::get_recording_status,
+            recorder::commands::probe_encoders,
+            // Settings
+            settings::commands::get_settings,
+            settings::commands::update_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
