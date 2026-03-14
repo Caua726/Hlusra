@@ -120,10 +120,10 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, isReco
     );
   }
 
-  // Home view - record button with pulse rings
+  // Home view - record button
   return (
     <>
-      <div className="relative mb-6 stagger">
+      <div className="relative mb-8">
         {/* Pulse rings */}
         <div className="absolute inset-0 rounded-full border border-brand-500/15 animate-pulse-ring" />
         <div className="absolute inset-0 rounded-full border border-brand-500/10 animate-pulse-ring" style={{ animationDelay: "0.6s" }} />
@@ -131,18 +131,25 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, isReco
         <button
           onClick={handleStart}
           disabled={starting}
-          className="rec-btn relative w-24 h-24 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center glow-brand cursor-pointer group border-0 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="rec-btn relative w-20 h-20 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center glow-brand cursor-pointer group border-0 disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          <div className="w-8 h-8 rounded-md bg-white/90 group-hover:rounded-lg group-hover:scale-110 transition-all duration-300" />
+          {/* Mic icon */}
+          <svg className="w-7 h-7 text-white group-hover:scale-110 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+          </svg>
         </button>
       </div>
 
-      <p className="text-[11px] text-white/20 mb-6 stagger">
-        {starting ? "Iniciando..." : "Clique para gravar"}
-      </p>
+      <button
+        onClick={handleStart}
+        disabled={starting}
+        className="text-sm text-white/40 hover:text-white/70 transition-colors mb-6 cursor-pointer bg-transparent border-0 disabled:cursor-not-allowed"
+      >
+        {starting ? "Iniciando..." : "Gravar reuniao"}
+      </button>
 
       {/* Screen toggle */}
-      <label className="flex items-center gap-2.5 cursor-pointer select-none stagger">
+      <label className="flex items-center gap-2.5 cursor-pointer select-none">
         <div className="relative">
           <input
             type="checkbox"
@@ -157,7 +164,7 @@ export default function RecordButton({ onRecordingStart, onRecordingDone, isReco
         <span className="text-xs text-white/25">Gravar tela</span>
       </label>
 
-      {error && <p className="text-red-500 text-sm mt-4">{error}</p>}
+      {error && <p className="text-red-400/80 text-xs mt-4">{error}</p>}
     </>
   );
 }
