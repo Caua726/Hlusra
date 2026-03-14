@@ -1,48 +1,70 @@
 import { useState } from "react";
 import Gallery from "./components/Gallery";
+import RecordButton from "./components/RecordButton";
+import MeetingPage from "./components/MeetingPage";
+import SettingsPage from "./components/SettingsPage";
 import "./styles/app.css";
 
-type View = { kind: "home" } | { kind: "gallery" } | { kind: "meeting"; id: string };
+type View =
+  | { kind: "home" }
+  | { kind: "gallery" }
+  | { kind: "meeting"; id: string }
+  | { kind: "settings" };
 
 function App() {
   const [view, setView] = useState<View>({ kind: "home" });
 
   return (
     <div className="app">
+      {/* Nav bar */}
+      <nav className="nav-bar">
+        <button
+          className={`nav-link ${view.kind === "home" ? "active" : ""}`}
+          onClick={() => setView({ kind: "home" })}
+        >
+          Início
+        </button>
+        <button
+          className={`nav-link ${view.kind === "gallery" ? "active" : ""}`}
+          onClick={() => setView({ kind: "gallery" })}
+        >
+          Galeria
+        </button>
+        <button
+          className={`nav-link ${view.kind === "settings" ? "active" : ""}`}
+          onClick={() => setView({ kind: "settings" })}
+        >
+          Configurações
+        </button>
+      </nav>
+
+      {/* Views */}
       {view.kind === "home" && (
         <div className="home">
           <h1>Hlusra</h1>
-          <div className="home-actions">
-            <button className="btn-primary btn-large" disabled>
-              Comecar a gravar
-            </button>
-            <label className="toggle">
-              <input type="checkbox" disabled />
-              <span>Gravar tela</span>
-            </label>
-          </div>
-          <button className="btn-secondary" onClick={() => setView({ kind: "gallery" })}>
+          <RecordButton onRecordingDone={() => setView({ kind: "gallery" })} />
+          <button
+            className="btn-secondary"
+            onClick={() => setView({ kind: "gallery" })}
+          >
             Galeria
           </button>
         </div>
       )}
 
       {view.kind === "gallery" && (
-        <div>
-          <button className="btn-back" onClick={() => setView({ kind: "home" })}>
-            &larr; Voltar
-          </button>
-          <Gallery onSelectMeeting={(id) => setView({ kind: "meeting", id })} />
-        </div>
+        <Gallery onSelectMeeting={(id) => setView({ kind: "meeting", id })} />
       )}
 
       {view.kind === "meeting" && (
-        <div>
-          <button className="btn-back" onClick={() => setView({ kind: "gallery" })}>
-            &larr; Voltar
-          </button>
-          <p>Meeting: {view.id}</p>
-        </div>
+        <MeetingPage
+          meetingId={view.id}
+          onBack={() => setView({ kind: "gallery" })}
+        />
+      )}
+
+      {view.kind === "settings" && (
+        <SettingsPage onBack={() => setView({ kind: "home" })} />
       )}
     </div>
   );
