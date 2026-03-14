@@ -66,10 +66,10 @@ export default function TranscriptView({
 
   if (transcriptionStatus === "processing" || transcribing) {
     return (
-      <div className="transcript-section">
-        <h3>Transcrição</h3>
-        <div className="transcript-loading">
-          <div className="spinner" />
+      <div className="mb-8">
+        <h3 className="text-lg font-semibold mb-4 pb-2 border-b border-zinc-700">Transcricao</h3>
+        <div className="flex flex-col items-center gap-3 p-8 text-zinc-500">
+          <div className="w-6 h-6 border-[3px] border-zinc-700 border-t-rose-500 rounded-full animate-[spin_0.7s_linear_infinite]" />
           <p>Transcrevendo...</p>
         </div>
       </div>
@@ -78,14 +78,14 @@ export default function TranscriptView({
 
   if (transcriptionStatus === "failed") {
     return (
-      <div className="transcript-section">
-        <h3>Transcrição</h3>
-        <div className="transcript-empty">
-          <p className="error-text">A transcrição falhou.</p>
-          <button className="btn-primary" onClick={handleTranscribe} disabled={transcribing}>
+      <div className="mb-8">
+        <h3 className="text-lg font-semibold mb-4 pb-2 border-b border-zinc-700">Transcricao</h3>
+        <div className="text-center p-8 text-zinc-500 flex flex-col items-center gap-4">
+          <p className="text-red-500 text-sm">A transcricao falhou.</p>
+          <button className="bg-rose-500 text-white border-none px-6 py-2.5 rounded-lg text-sm cursor-pointer transition-colors duration-150 font-medium hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed" onClick={handleTranscribe} disabled={transcribing}>
             Tentar novamente
           </button>
-          {error && <p className="error-text">{error}</p>}
+          {error && <p className="text-red-500 text-sm">{error}</p>}
         </div>
       </div>
     );
@@ -93,14 +93,14 @@ export default function TranscriptView({
 
   if (transcriptionStatus === "pending" || (!transcript && transcriptionStatus !== "done")) {
     return (
-      <div className="transcript-section">
-        <h3>Transcrição</h3>
-        <div className="transcript-empty">
-          <p>Nenhuma transcrição disponível.</p>
-          <button className="btn-primary" onClick={handleTranscribe} disabled={transcribing}>
+      <div className="mb-8">
+        <h3 className="text-lg font-semibold mb-4 pb-2 border-b border-zinc-700">Transcricao</h3>
+        <div className="text-center p-8 text-zinc-500 flex flex-col items-center gap-4">
+          <p>Nenhuma transcricao disponivel.</p>
+          <button className="bg-rose-500 text-white border-none px-6 py-2.5 rounded-lg text-sm cursor-pointer transition-colors duration-150 font-medium hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed" onClick={handleTranscribe} disabled={transcribing}>
             Transcrever agora
           </button>
-          {error && <p className="error-text">{error}</p>}
+          {error && <p className="text-red-500 text-sm">{error}</p>}
         </div>
       </div>
     );
@@ -118,19 +118,19 @@ export default function TranscriptView({
 
   if (parsed && parsed.segments && parsed.segments.length > 0) {
     return (
-      <div className="transcript-section">
-        <h3>Transcrição</h3>
-        <div className="transcript-segments">
+      <div className="mb-8">
+        <h3 className="text-lg font-semibold mb-4 pb-2 border-b border-zinc-700">Transcricao</h3>
+        <div className="max-h-[400px] overflow-y-auto pr-2">
           {parsed.segments.map((seg, i) => (
-            <div key={i} className="transcript-segment">
+            <div key={i} className="flex gap-4 py-2 border-b border-zinc-800 last:border-b-0">
               <button
-                className="segment-time"
+                className="bg-transparent border-none text-blue-500 text-xs tabular-nums cursor-pointer whitespace-nowrap py-0.5 shrink-0 transition-colors duration-150 hover:text-blue-400"
                 onClick={() => onSeek(seg.start)}
                 title="Ir para este trecho"
               >
                 {formatTime(seg.start)} - {formatTime(seg.end)}
               </button>
-              <p className="segment-text">{seg.text}</p>
+              <p className="text-sm leading-relaxed text-zinc-100">{seg.text}</p>
             </div>
           ))}
         </div>
@@ -140,15 +140,15 @@ export default function TranscriptView({
 
   // Plain text fallback
   return (
-    <div className="transcript-section">
-      <h3>Transcrição</h3>
+    <div className="mb-8">
+      <h3 className="text-lg font-semibold mb-4 pb-2 border-b border-zinc-700">Transcricao</h3>
       {transcript ? (
-        <div className="transcript-plain">
+        <div className="p-4 bg-zinc-800/50 rounded-lg text-sm leading-7 max-h-[400px] overflow-y-auto whitespace-pre-wrap">
           <p>{transcript}</p>
         </div>
       ) : (
-        <div className="transcript-empty">
-          <p>Transcrição concluída, mas sem conteúdo disponível.</p>
+        <div className="text-center p-8 text-zinc-500 flex flex-col items-center gap-4">
+          <p>Transcricao concluida, mas sem conteudo disponivel.</p>
         </div>
       )}
     </div>

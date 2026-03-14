@@ -16,33 +16,33 @@ function App() {
   const galleryRefreshRef = useRef(0);
 
   return (
-    <div className="app">
+    <div className="max-w-[960px] mx-auto px-6 pb-12">
       {/* Nav bar */}
-      <nav className="nav-bar">
+      <nav className="flex gap-1 py-3 border-b border-zinc-800 mb-6">
         <button
-          className={`nav-link ${view.kind === "home" ? "active" : ""}`}
+          className={`bg-transparent border-none text-zinc-500 px-4 py-2 text-sm cursor-pointer rounded-lg transition-colors duration-150 hover:text-zinc-100 hover:bg-zinc-900 ${view.kind === "home" ? "text-zinc-100 bg-zinc-800" : ""}`}
           onClick={() => setView({ kind: "home" })}
         >
-          Início
+          Inicio
         </button>
         <button
-          className={`nav-link ${view.kind === "gallery" ? "active" : ""}`}
+          className={`bg-transparent border-none text-zinc-500 px-4 py-2 text-sm cursor-pointer rounded-lg transition-colors duration-150 hover:text-zinc-100 hover:bg-zinc-900 ${view.kind === "gallery" ? "text-zinc-100 bg-zinc-800" : ""}`}
           onClick={() => setView({ kind: "gallery" })}
         >
           Galeria
         </button>
         <button
-          className={`nav-link ${view.kind === "settings" ? "active" : ""}`}
+          className={`bg-transparent border-none text-zinc-500 px-4 py-2 text-sm cursor-pointer rounded-lg transition-colors duration-150 hover:text-zinc-100 hover:bg-zinc-900 ${view.kind === "settings" ? "text-zinc-100 bg-zinc-800" : ""}`}
           onClick={() => setView({ kind: "settings" })}
         >
-          Configurações
+          Configuracoes
         </button>
       </nav>
 
       {/* Views */}
       {view.kind === "home" && (
-        <div className="home">
-          <h1>Hlusra</h1>
+        <div className="flex flex-col items-center justify-center min-h-[70vh] gap-8">
+          <h1 className="text-5xl font-bold text-rose-500 tracking-tight">Hlusra</h1>
           <RecordButton
             onRecordingDone={() => {
               galleryRefreshRef.current += 1;

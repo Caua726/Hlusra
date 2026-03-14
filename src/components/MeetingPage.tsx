@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { readFile } from "@tauri-apps/plugin-fs";
 import {
   getMeeting,
   updateMeetingTitle,
@@ -39,6 +39,7 @@ export default function MeetingPage({ meetingId, onBack }: Props) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [mediaBlobUrl, setMediaBlobUrl] = useState<string | null>(null);
   const mediaElRef = useRef<HTMLMediaElement | null>(null);
   const setMediaRef = useCallback((el: HTMLMediaElement | null) => {
     mediaElRef.current = el;
@@ -59,6 +60,33 @@ export default function MeetingPage({ meetingId, onBack }: Props) {
   useEffect(() => {
     loadMeeting();
   }, [loadMeeting]);
+
+  // Load media file as blob URL to avoid asset protocol issues on Linux/WebKitGTK
+  useEffect(() => {
+    let revoked = false;
+    let url: string | null = null;
+
+    async function loadMedia() {
+      if (!meeting || meeting.media_status !== "present") return;
+      const mediaPath = meeting.dir_path + "/recording.mkv";
+      try {
+        const bytes = await readFile(mediaPath);
+        if (revoked) return;
+        const mimeType = meeting.has_video ? "video/x-matroska" : "audio/x-matroska";
+        const blob = new Blob([bytes], { type: mimeType });
+        url = URL.createObjectURL(blob);
+        setMediaBlobUrl(url);
+      } catch (e) {
+        console.error("[MeetingPage] failed to load media file:", e);
+      }
+    }
+
+    loadMedia();
+    return () => {
+      revoked = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [meeting?.id, meeting?.media_status]);
 
   function handleSeek(time: number) {
     if (mediaElRef.current) {
@@ -140,31 +168,28 @@ export default function MeetingPage({ meetingId, onBack }: Props) {
   }
 
   if (loading) {
-    return <div className="loading">Carregando...</div>;
+    return <div className="text-center p-12 text-zinc-500">Carregando...</div>;
   }
 
   if (error || !meeting) {
     return (
-      <div className="meeting-page">
-        <button className="btn-back" onClick={onBack}>&larr; Voltar</button>
-        <p className="error-text">{error || "Reunião não encontrada."}</p>
+      <div className="pb-8">
+        <button className="bg-transparent text-zinc-500 border-none py-1.5 text-sm cursor-pointer mb-4 transition-colors duration-150 hover:text-zinc-100" onClick={onBack}>&larr; Voltar</button>
+        <p className="text-red-500 text-sm mt-2">{error || "Reuniao nao encontrada."}</p>
       </div>
     );
   }
 
-  const mediaPath = meeting.dir_path + "/recording.mkv";
-  const mediaSrc = convertFileSrc(mediaPath);
-
   return (
-    <div className="meeting-page">
-      <button className="btn-back" onClick={onBack}>&larr; Voltar</button>
+    <div className="pb-8">
+      <button className="bg-transparent text-zinc-500 border-none py-1.5 text-sm cursor-pointer mb-4 transition-colors duration-150 hover:text-zinc-100" onClick={onBack}>&larr; Voltar</button>
 
       {/* Header */}
-      <div className="meeting-header">
-        <div className="meeting-title-row">
+      <div className="mb-6">
+        <div className="mb-2">
           {editingTitle ? (
             <input
-              className="title-input"
+              className="text-3xl font-semibold bg-zinc-800 text-zinc-100 border border-rose-500 rounded-lg px-2 py-1 w-full outline-none"
               value={titleDraft}
               onChange={(e) => setTitleDraft(e.target.value)}
               onBlur={handleSaveTitle}
@@ -173,7 +198,7 @@ export default function MeetingPage({ meetingId, onBack }: Props) {
             />
           ) : (
             <h1
-              className="meeting-page-title"
+              className="text-3xl font-semibold cursor-pointer py-0.5 border-b border-dashed border-transparent transition-colors duration-150 hover:border-zinc-600"
               onClick={() => setEditingTitle(true)}
               title="Clique para editar"
             >
@@ -181,35 +206,39 @@ export default function MeetingPage({ meetingId, onBack }: Props) {
             </h1>
           )}
         </div>
-        <div className="meeting-info">
+        <div className="flex gap-6 text-zinc-500 text-sm">
           <span>{formatDate(meeting.created_at)}</span>
           <span>{formatDuration(meeting.duration_secs)}</span>
-          <span>{meeting.has_video ? "Vídeo" : "Áudio"}</span>
+          <span>{meeting.has_video ? "Video" : "Audio"}</span>
         </div>
       </div>
 
       {/* Media Player */}
       {meeting.media_status === "present" ? (
-        <div className="media-player">
-          {meeting.has_video ? (
-            <video
-              ref={setMediaRef}
-              src={mediaSrc}
-              controls
-              className="player-video"
-            />
+        <div className="mb-8">
+          {mediaBlobUrl ? (
+            meeting.has_video ? (
+              <video
+                ref={setMediaRef}
+                src={mediaBlobUrl}
+                controls
+                className="w-full max-h-[480px] rounded-xl bg-black"
+              />
+            ) : (
+              <audio
+                ref={setMediaRef}
+                src={mediaBlobUrl}
+                controls
+                className="w-full rounded-lg bg-zinc-800"
+              />
+            )
           ) : (
-            <audio
-              ref={setMediaRef}
-              src={mediaSrc}
-              controls
-              className="player-audio"
-            />
+            <p className="text-center p-12 text-zinc-500">Carregando midia...</p>
           )}
         </div>
       ) : (
-        <div className="media-player">
-          <p className="empty">Mídia excluída.</p>
+        <div className="mb-8">
+          <p className="text-center p-12 text-zinc-500">Midia excluida.</p>
         </div>
       )}
 
@@ -230,22 +259,22 @@ export default function MeetingPage({ meetingId, onBack }: Props) {
       />
 
       {/* Actions bar */}
-      <div className="meeting-actions">
-        <button className="btn-primary" onClick={() => setShowExport(true)} disabled={actionBusy}>
+      <div className="flex gap-3 flex-wrap pt-4 border-t border-zinc-700">
+        <button className="bg-rose-500 text-white border-none px-6 py-2.5 rounded-lg text-sm cursor-pointer transition-colors duration-150 font-medium hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => setShowExport(true)} disabled={actionBusy}>
           Exportar
         </button>
         {meeting.transcription_status === "done" && (
-          <button className="btn-secondary" onClick={handleRetranscribe} disabled={actionBusy}>
+          <button className="bg-transparent text-zinc-100 border border-zinc-700 px-6 py-2.5 rounded-lg text-sm cursor-pointer transition-colors duration-150 hover:border-zinc-500 hover:bg-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed" onClick={handleRetranscribe} disabled={actionBusy}>
             {actionBusy ? "Processando..." : "Retranscrever"}
           </button>
         )}
         {meeting.chat_status === "ready" && (
-          <button className="btn-secondary" onClick={handleReindex} disabled={actionBusy}>
+          <button className="bg-transparent text-zinc-100 border border-zinc-700 px-6 py-2.5 rounded-lg text-sm cursor-pointer transition-colors duration-150 hover:border-zinc-500 hover:bg-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed" onClick={handleReindex} disabled={actionBusy}>
             {actionBusy ? "Processando..." : "Reindexar"}
           </button>
         )}
         <button
-          className="btn-danger"
+          className="bg-transparent text-red-500 border border-red-500 px-6 py-2.5 rounded-lg text-sm cursor-pointer transition-colors duration-150 hover:bg-red-500/10"
           onClick={() => setShowDeleteConfirm(true)}
           disabled={actionBusy}
         >
@@ -253,22 +282,22 @@ export default function MeetingPage({ meetingId, onBack }: Props) {
         </button>
       </div>
 
-      {actionError && <p className="error-text">{actionError}</p>}
+      {actionError && <p className="text-red-500 text-sm mt-2">{actionError}</p>}
 
       {/* Delete confirmation */}
       {showDeleteConfirm && (
-        <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
-          <div className="modal-content modal-small" onClick={(e) => e.stopPropagation()}>
-            <h3>Confirmar exclusão</h3>
-            <p>O que deseja excluir?</p>
-            <div className="modal-actions">
-              <button className="btn-primary" onClick={() => setShowDeleteConfirm(false)} disabled={actionBusy}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] backdrop-blur-sm" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-7 max-w-[380px] w-[90%] text-center" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-3 font-semibold">Confirmar exclusao</h3>
+            <p className="text-zinc-500 text-sm mb-5">O que deseja excluir?</p>
+            <div className="flex gap-3 justify-center">
+              <button className="bg-rose-500 text-white border-none px-6 py-2.5 rounded-lg text-sm cursor-pointer transition-colors duration-150 font-medium hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => setShowDeleteConfirm(false)} disabled={actionBusy}>
                 Cancelar
               </button>
-              <button className="btn-secondary" onClick={() => handleDelete("media_only")} disabled={actionBusy}>
-                {actionBusy ? "Excluindo..." : "Apagar só mídia"}
+              <button className="bg-transparent text-zinc-100 border border-zinc-700 px-6 py-2.5 rounded-lg text-sm cursor-pointer transition-colors duration-150 hover:border-zinc-500 hover:bg-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => handleDelete("media_only")} disabled={actionBusy}>
+                {actionBusy ? "Excluindo..." : "Apagar so midia"}
               </button>
-              <button className="btn-danger" onClick={() => handleDelete("everything")} disabled={actionBusy}>
+              <button className="bg-transparent text-red-500 border border-red-500 px-6 py-2.5 rounded-lg text-sm cursor-pointer transition-colors duration-150 hover:bg-red-500/10" onClick={() => handleDelete("everything")} disabled={actionBusy}>
                 {actionBusy ? "Excluindo..." : "Apagar tudo"}
               </button>
             </div>
